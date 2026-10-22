@@ -50,6 +50,7 @@ void SdlInputBackend::HandleEvent(const SDL_Event& event) {
 }
 
 ::InputFrameState SdlInputBackend::CaptureFrame() {
+    ++CapturedFrameCount;
     ::InputFrameState frame;
     const bool active = BackgroundInput || (!Offscreen && SDL_GetKeyboardFocus());
     List<::Keys> keys;

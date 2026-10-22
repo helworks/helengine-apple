@@ -6,10 +6,7 @@
 #include "apple/apple_sdl_host.hpp"
 #include "Core.hpp"
 #include "CoreInitializationOptions.hpp"
-#include "ObjectManager.hpp"
-#include "Entity.hpp"
-#include "Component.hpp"
-#include "ButtonComponent.hpp"
+#include "apple/core_player_observer.hpp"
 #include "PlatformInfo.hpp"
 #include "PlatformSettingsConfiguration.hpp"
 #include "HostFileSystemContentStreamSource.hpp"
@@ -68,7 +65,7 @@ std::string ApplePlayer::ResolveSceneId(::RuntimeSceneCatalog* catalog,const std
     return selected;
 }
 
-int ApplePlayer::Run(const AppleRunOptions& options) {
+int ApplePlayer::Run(const AppleRunOptions& options,CorePlayerObserver* observer) {
     std::unique_ptr<AppleSdlHost> window;
     if (!options.Offscreen) window=std::make_unique<AppleSdlHost>(HELENGINE_APPLE_DEFAULT_WIDTH,HELENGINE_APPLE_DEFAULT_HEIGHT);
     MetalRenderer renderer;
@@ -91,7 +88,8 @@ int ApplePlayer::Run(const AppleRunOptions& options) {
     render3d.AddWindow(1,width,height); render3d.set_ShadowsEnabled(he_get_runtime_shadows_enabled());
     bool coreNeedsShutdown=false;
     try {
-        core.Initialize(&render3d,&render2d,&input,&platform,&initialization); coreNeedsShutdown=true;
+        coreNeedsShutdown=true;
+        core.Initialize(&render3d,&render2d,&input,&platform,&initialization);
         RegisterGeneratedRuntimeModules(&core);
         const std::string scene=ResolveSceneId(catalog.get(),options.SceneId,he_get_runtime_startup_scene_relative_path());
         std::cout << "core=generated scene=" << scene << " catalog_count=" << catalog->get_Entries()->get_Length() << " device=" << renderer.DeviceName() << '\n';
@@ -116,7 +114,9 @@ int ApplePlayer::Run(const AppleRunOptions& options) {
             }
             const auto now=std::chrono::steady_clock::now();
             const double elapsed=options.Offscreen ? 1.0/60.0 : std::chrono::duration<double>(now-previous).count(); previous=now;
+            if (observer) observer->BeforeUpdate(core,input,frames);
             const auto updateStart=std::chrono::steady_clock::now(); core.Update(elapsed);
+            if (observer) observer->AfterUpdate(core,input,frames);
             const auto drawStart=std::chrono::steady_clock::now(); core.Draw();
             if (window) { if (!renderer.Present(window->GetLayer(),width,height)) SDL_Delay(16); }
             else pixels=renderer.RenderOffscreen(width,height);
@@ -128,15 +128,9 @@ int ApplePlayer::Run(const AppleRunOptions& options) {
         for (uint8_t byte : pixels) checksum=(checksum^byte)*1099511628211ULL;
         bool nonuniform=false;
         for (size_t index=4;index+3<pixels.size();index+=4) if (pixels[index]!=pixels[0] || pixels[index+1]!=pixels[1] || pixels[index+2]!=pixels[2] || pixels[index+3]!=pixels[3]) { nonuniform=true; break; }
-        uint32_t buttonCount=0;
-        auto* entities=core.get_ObjectManager()->get_Entities();
-        for (int32_t index=0;index<entities->get_Count();++index) {
-            auto* components=(*entities)[index]->get_Components();
-            for (int32_t componentIndex=0;componentIndex<components->get_Count();++componentIndex) if (dynamic_cast<::ButtonComponent*>((*components)[componentIndex])) ++buttonCount;
-        }
-        std::cout << "core_frames=" << frames << " draw_calls=" << render3d.get_LastDrawCallCount() << " rgba_bytes=" << pixels.size() << " checksum=" << checksum << " nonuniform=" << nonuniform << " button_count=" << buttonCount << '\n';
+        std::cout << "core_frames=" << frames << " draw_calls=" << render3d.get_LastDrawCallCount() << " rgba_bytes=" << pixels.size() << " checksum=" << checksum << " nonuniform=" << nonuniform << '\n';
         if (options.Offscreen && (!frames || render3d.get_LastDrawCallCount()<=0 || !nonuniform)) throw std::runtime_error("Generated-core offscreen run produced no drawable content; menu validation failed");
-        if (options.ExpectedButtons && buttonCount!=options.ExpectedButtons) throw std::runtime_error("Generated scene button count differs from --expect-buttons");
+        if (observer) observer->ValidateComplete(core);
         coreNeedsShutdown=false; core.Dispose();
         return 0;
     } catch (...) {

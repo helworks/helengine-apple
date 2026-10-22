@@ -24,7 +24,11 @@ public:
     ::InputFrameState CaptureFrame() override;
     /// <summary>Maps SDL physical scancodes to engine desktop keys without relying on Win32 virtual-key APIs.</summary>
     static ::Keys TranslateScancode(SDL_Scancode scancode);
+    /// Reports actual captures for deterministic replay assertions without polling another provider.
+    uint64_t GetCapturedFrameCount() const { return CapturedFrameCount; }
 private:
+    /// Counts captures made by the actual generated input system.
+    uint64_t CapturedFrameCount = 0;
     /// <summary>Opens a new attached gamepad into the first available stable slot.</summary>
     void OpenGamepad(SDL_JoystickID id);
     /// <summary>Borrows no desktop input APIs during explicit offscreen execution.</summary>

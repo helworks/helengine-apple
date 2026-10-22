@@ -18,7 +18,5 @@ public:
     bool Validation = false;
     /// <summary>Limits execution for reproducible smoke tests; zero means run until the SDL quit event.</summary>
     uint32_t Frames = 0;
-    /// Enables a real generated component-count assertion without changing authored scene content.
-    uint32_t ExpectedButtons = 0;
 };
 }
