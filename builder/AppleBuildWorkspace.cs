@@ -38,6 +38,9 @@ public static class AppleBuildWorkspace {
             CopyPayload(staged, output, asset.SourceIdentity, cancellationToken);
             assets.Add(new(asset.AssetId, PlatformBuildItemOutcomeKind.Succeeded));
         }
+        foreach (var artifact in request.Manifest.CookedArtifacts) {
+            CopyPayload(staged,output,artifact.RelativePath,cancellationToken);
+        }
         foreach (var work in request.Manifest.PlatformCookWorkItems) {
             if (work.TargetPlatformId != target) { throw new InvalidOperationException("Apple cook work item belongs to a different target: " + work.WorkItemId); }
             string source = Path.GetFullPath(work.SourceAssetPath.Replace('\\', Path.DirectorySeparatorChar), staged);
@@ -90,13 +93,19 @@ public static class AppleBuildWorkspace {
 
     /// <summary>Copies the actual staged cooked tree while validating every destination, including Unicode and space-containing paths.</summary>
     static void CopyTree(string source, string destination, CancellationToken cancellationToken) {
-        foreach (string file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories)) {
-            cancellationToken.ThrowIfCancellationRequested();
-            if ((File.GetAttributes(file) & FileAttributes.ReparsePoint) != 0) { throw new InvalidOperationException("Cooked payload symlinks are not supported: " + file); }
-            string relative = Path.GetRelativePath(source, file);
-            string target = ResolveCookedPath(Path.GetDirectoryName(destination), "cooked/" + relative);
-            Directory.CreateDirectory(Path.GetDirectoryName(target));
-            if (Path.GetFullPath(file) != target) { File.Copy(file, target, true); }
+        Stack<string> pending = new();
+        pending.Push(source);
+        while (pending.Count > 0) {
+            foreach (string entry in Directory.EnumerateFileSystemEntries(pending.Pop())) {
+                cancellationToken.ThrowIfCancellationRequested();
+                FileAttributes attributes = File.GetAttributes(entry);
+                if ((attributes & FileAttributes.ReparsePoint) != 0) { throw new InvalidOperationException("Cooked payload symlinks are not supported: " + entry); }
+                if ((attributes & FileAttributes.Directory) != 0) { pending.Push(entry); continue; }
+                string relative = Path.GetRelativePath(source, entry);
+                string target = ResolveCookedPath(Path.GetDirectoryName(destination), "cooked/" + relative);
+                Directory.CreateDirectory(Path.GetDirectoryName(target));
+                if (Path.GetFullPath(entry) != target) { File.Copy(entry, target, true); }
+            }
         }
     }
 

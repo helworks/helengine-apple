@@ -41,6 +41,7 @@ public static class Program {
         }
         if (arguments.Contains("--shader")) { ValidateNativeShader("macos"); }
         if (arguments.Contains("--shader-ios")) { ValidateNativeShader("ios"); }
+        BuildWorkspaceTests.Run();
         Console.WriteLine("Apple builder metadata: 2 targets, 3 exact profiles, Metal, numeric policy and required inputs passed");
         return 0;
     }
