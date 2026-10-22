@@ -15,7 +15,7 @@ public static class ApplePlatformDefinitionFactory {
                 new("release", "Release", "Optimized native runtime", "metal", "default", [], new Dictionary<string,string>(StringComparer.Ordinal) { ["codegen-generated-function-profiling"] = "false" }),
                 new("profiler", "Profiler", "Generated scopes and native Tracy CPU samples; macOS capture validation required", "metal", "default", [], new Dictionary<string,string>(StringComparer.Ordinal) {
                     ["codegen-generated-function-profiling"] = "true",
-                    ["codegen-generated-function-profiling-maintained-symbol-prefixes"] = "Core,SceneManager,RenderCommandListBuilder2D"
+                    ["codegen-generated-function-profiling-maintained-symbol-prefixes"] = "helengine.Core.;helengine.SceneManager.;helengine.RenderCommandListBuilder2D."
                 })
             ],
             [new("metal", "Metal", "Shared native Apple renderer", [
@@ -28,7 +28,7 @@ public static class ApplePlatformDefinitionFactory {
                     new("generated-math-convention", "Generated Math Convention", PlatformSettingKind.Text, "engine-row-vector", true, []),
                     new("pointer-size-bytes", "Pointer Size Bytes", PlatformSettingKind.Text, "8", true, []),
                     new("codegen-generated-function-profiling", "Generated Function Profiling", PlatformSettingKind.Boolean, "false", true, []),
-                    new("codegen-generated-function-profiling-maintained-symbol-prefixes", "Maintained Profiling Symbol Prefixes", PlatformSettingKind.Text, "Core,SceneManager,RenderCommandListBuilder2D", true, []),
+                    new("codegen-generated-function-profiling-maintained-symbol-prefixes", "Maintained Profiling Symbol Prefixes", PlatformSettingKind.Text, "helengine.Core.;helengine.SceneManager.;helengine.RenderCommandListBuilder2D.", true, []),
                     new(PlatformCodegenSettingIds.EnabledFeatures, "Enabled Runtime Features", PlatformSettingKind.Text, "host_file_system", true, []),
                     new("load-native-runtime-metadata", "Load Native Runtime Metadata", PlatformSettingKind.Boolean, "true", true, []),
                     new("codegen-use-rtti", "Use Compiler RTTI", PlatformSettingKind.Boolean, "true", true, []),
