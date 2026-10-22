@@ -44,6 +44,16 @@ public:
         const std::size_t center = (32*64+32)*4;
         if (pixels[center] != 16 || pixels[center+1] != 128 || pixels[center+2] != 56 || pixels[center+3] != 255) throw std::runtime_error("Actual authored Metal material sampled/tinted pixels incorrectly");
         renderer.ReleaseMaterial(material);
+        const auto arrayFragment = Read(root+"/fragment-array.metallib");
+        const auto arrayMaterial = renderer.UploadMaterial(vertex,"VSMain",arrayFragment,"PSMain");
+        rejected = false;
+        try { renderer.SubmitMaterialMesh(mesh,arrayMaterial,buffers,bindings); } catch (const std::invalid_argument&) { rejected = true; }
+        if (!rejected) throw std::runtime_error("Authored material accepted a missing second array texture");
+        const std::array<MaterialTexture,2> arrayBindings = {MaterialTexture{0,2,texture},MaterialTexture{1,2,texture}};
+        renderer.SubmitMaterialMesh(mesh,arrayMaterial,buffers,arrayBindings);
+        const auto arrayPixels = renderer.RenderOffscreen(64,64);
+        if (arrayPixels[center] != 16 || arrayPixels[center+1] != 128 || arrayPixels[center+2] != 56 || arrayPixels[center+3] != 255) throw std::runtime_error("Authored Metal texture/sampler array pixels were incorrect");
+        renderer.ReleaseMaterial(arrayMaterial);
         renderer.ReleaseMesh(mesh);
         renderer.ReleaseTexture(texture);
     }

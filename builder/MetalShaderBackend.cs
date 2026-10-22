@@ -25,6 +25,7 @@ public sealed class MetalShaderBackend : ShaderBackendBase, IShaderBackendCacheP
     /// <summary>Emits a real MTLB library and retains the SPIR-V reflection which maps preserved bindings to native Metal slots.</summary>
     protected override byte[] CompileBytecode(ShaderCompileRequest request, IShaderIncludeResolver includeResolver, out ShaderCompileDiagnostic[] diagnostics) {
         if (!OperatingSystem.IsMacOS()) { throw new PlatformNotSupportedException("Authored Metal shader compilation requires the real Apple SDK on macOS."); }
+        if (request.Options.BindingPolicy.DefaultSpace != 0 || request.Options.BindingPolicy.ConstantBufferShift != 0) { throw new NotSupportedException("The shared shaderc frontend and Metal adapter require descriptor space zero and zero constant-buffer shift."); }
         lock (CompilerLock) {
             string tools = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "dev/helworks/tools");
             string cross = Path.Combine(tools, "spirv-cross/bin/spirv-cross");
@@ -39,7 +40,6 @@ public sealed class MetalShaderBackend : ShaderBackendBase, IShaderBackendCacheP
             string air = Path.Combine(root, "source.air");
             string library = Path.Combine(root, "source.metallib");
             File.WriteAllBytes(spirv, Frontend.CompileIntermediate(request, includeResolver));
-            if (request.Options.BindingPolicy.ConstantBufferShift != 0) { throw new NotSupportedException("The shared shaderc HLSL frontend currently requires zero constant-buffer shift for Metal."); }
             Run(translator,[spirv,metal,request.Stage == ShaderStage.Vertex ? "vert" : "frag",request.EntryPoint,PlatformTarget,
                 request.Options.BindingPolicy.ConstantBufferShift.ToString(System.Globalization.CultureInfo.InvariantCulture),request.Options.BindingPolicy.TextureShift.ToString(System.Globalization.CultureInfo.InvariantCulture),request.Options.BindingPolicy.SamplerShift.ToString(System.Globalization.CultureInfo.InvariantCulture)],root);
             Run(cross, [spirv, "--reflect", "--output", reflection], root);

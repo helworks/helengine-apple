@@ -80,16 +80,18 @@ namespace helengine::apple {
     void MetalRenderer::State::ReflectArguments(MaterialResource& material,NSArray<MTLArgument*>* arguments,std::uint32_t stage) {
         for (MTLArgument* argument in arguments) {
             if (!argument.active) continue;
+            const auto count = argument.arrayLength;
+            if (count == 0) throw std::runtime_error("Authored Metal reflection reported an empty resource array");
             if (argument.type == MTLArgumentTypeBuffer) {
                 if (argument.index == 30 && stage == 1) continue;
-                if (argument.index >= 30) throw std::runtime_error("Authored Metal constant buffer overlaps reserved mesh slot 30");
-                material.Required.push_back({0,static_cast<std::uint32_t>(argument.index),stage,argument.bufferDataSize});
+                if (argument.index >= 30 || count>30-argument.index) throw std::runtime_error("Authored Metal constant buffer overlaps reserved mesh slot 30");
+                for (NSUInteger index=0; index<count; ++index) material.Required.push_back({0,static_cast<std::uint32_t>(argument.index+index),stage,argument.bufferDataSize});
             } else if (argument.type == MTLArgumentTypeTexture) {
-                if (argument.index >= 128 || argument.textureType != MTLTextureType2D) throw std::runtime_error("Authored Metal material currently requires separate 2D texture bindings");
-                material.Required.push_back({1,static_cast<std::uint32_t>(argument.index),stage,0});
+                if (argument.index >= 128 || count>128-argument.index || argument.textureType != MTLTextureType2D) throw std::runtime_error("Authored Metal material currently requires separate 2D texture bindings");
+                for (NSUInteger index=0; index<count; ++index) material.Required.push_back({1,static_cast<std::uint32_t>(argument.index+index),stage,0});
             } else if (argument.type == MTLArgumentTypeSampler) {
-                if (argument.index >= 16) throw std::runtime_error("Authored Metal sampler exceeds the native slot limit");
-                material.Required.push_back({2,static_cast<std::uint32_t>(argument.index),stage,0});
+                if (argument.index >= 16 || count>16-argument.index) throw std::runtime_error("Authored Metal sampler exceeds the native slot limit");
+                for (NSUInteger index=0; index<count; ++index) material.Required.push_back({2,static_cast<std::uint32_t>(argument.index+index),stage,0});
             } else throw std::runtime_error("Authored Metal material has an unsupported reflected resource kind");
         }
     }
