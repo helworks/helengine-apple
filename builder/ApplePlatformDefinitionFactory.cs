@@ -23,7 +23,7 @@ public static class ApplePlatformDefinitionFactory {
                     new("load-native-runtime-metadata", "Load Native Runtime Metadata", PlatformSettingKind.Boolean, "true", true, []),
                     new("codegen-use-rtti", "Use Compiler RTTI", PlatformSettingKind.Boolean, "true", true, []),
                     new("codegen-use-exceptions", "Use C++ Exceptions", PlatformSettingKind.Boolean, "true", true, [])
-                ], new PlatformNumericCapabilities(helengine.NumericPrecisionPolicy.Default, [new(32,32), new(64,64)]))],
+                ], new PlatformNumericCapabilities(helengine.NumericPrecisionPolicy.Default, [new(16,16), new(32,32), new(64,64)]))],
             [new("loose-files", "Read-only bundled content", PlatformStorageProfileKind.LooseFiles, target + "-loose-files", false)],
             [new(target + "-app-bundle", "Apple app bundle", PlatformMediaLayoutKind.InstallTree, false, false)],
             runtimeGenerationContract: new RuntimeGenerationContract(RuntimeMaterialResolutionMode.RawShaderBacked, true, PackagedPathPolicy.ContentRelativeOnly));
