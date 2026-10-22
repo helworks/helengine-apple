@@ -166,7 +166,7 @@ namespace helengine::apple {
                     [encoder setRenderPipelineState:material->second.Pipeline];
                     [encoder setDepthStencilState:material->second.DepthState];
                     [encoder setCullMode:material->second.CullMode];
-                    [encoder setFrontFacingWinding:MTLWindingClockwise];
+                    [encoder setFrontFacingWinding:MTLWindingCounterClockwise];
                     [encoder setVertexBuffer:mesh->second.Vertices offset:0 atIndex:30];
                     for (const auto& binding : draw.MaterialBuffers) {
                         id<MTLBuffer> constants = [Device newBufferWithBytes:binding.Bytes.data() length:binding.Bytes.size() options:MTLResourceStorageModeShared];
