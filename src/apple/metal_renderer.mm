@@ -45,6 +45,13 @@ namespace helengine::apple {
         descriptor.vertexFunction = [library newFunctionWithName:@"mesh_vertex"];
         MeshPipeline = [Device newRenderPipelineStateWithDescriptor:descriptor error:&error];
         if (!MeshPipeline) throw std::runtime_error("Metal indexed mesh pipeline: " + std::string([[error localizedDescription] UTF8String]));
+        MTLRenderPipelineDescriptor* shadow=[MTLRenderPipelineDescriptor new];
+        shadow.vertexFunction=[library newFunctionWithName:@"shadow_vertex"];
+        shadow.fragmentFunction=[library newFunctionWithName:@"shadow_fragment"];
+        shadow.colorAttachments[0].pixelFormat=MTLPixelFormatR32Float;
+        shadow.depthAttachmentPixelFormat=MTLPixelFormatDepth32Float;
+        ShadowPipeline=[Device newRenderPipelineStateWithDescriptor:shadow error:&error];
+        if (!ShadowPipeline) throw std::runtime_error("Metal shadow pipeline: "+std::string([[error localizedDescription] UTF8String]));
         MTLDepthStencilDescriptor* depth = [MTLDepthStencilDescriptor new];
         depth.depthCompareFunction = MTLCompareFunctionLess;
         depth.depthWriteEnabled = YES;
@@ -87,8 +94,8 @@ namespace helengine::apple {
                 if (argument.index >= 30 || count>30-argument.index) throw std::runtime_error("Authored Metal constant buffer overlaps reserved mesh slot 30");
                 for (NSUInteger index=0; index<count; ++index) material.Required.push_back({0,static_cast<std::uint32_t>(argument.index+index),stage,argument.bufferDataSize});
             } else if (argument.type == MTLArgumentTypeTexture) {
-                if (argument.index >= 128 || count>128-argument.index || argument.textureType != MTLTextureType2D) throw std::runtime_error("Authored Metal material currently requires separate 2D texture bindings");
-                for (NSUInteger index=0; index<count; ++index) material.Required.push_back({1,static_cast<std::uint32_t>(argument.index+index),stage,0});
+                if (argument.index >= 128 || count>128-argument.index || (argument.textureType != MTLTextureType2D && argument.textureType != MTLTextureTypeCube)) throw std::runtime_error("Authored Metal material requires separate 2D or cube texture bindings");
+                for (NSUInteger index=0; index<count; ++index) material.Required.push_back({1,static_cast<std::uint32_t>(argument.index+index),stage,0,argument.textureType==MTLTextureTypeCube});
             } else if (argument.type == MTLArgumentTypeSampler) {
                 if (argument.index >= 16 || count>16-argument.index) throw std::runtime_error("Authored Metal sampler exceeds the native slot limit");
                 for (NSUInteger index=0; index<count; ++index) material.Required.push_back({2,static_cast<std::uint32_t>(argument.index+index),stage,0});
@@ -211,6 +218,20 @@ namespace helengine::apple {
         return identity;
     }
 
+    std::uint64_t MetalRenderer::UploadCubeTexture(std::uint32_t side,std::span<const std::uint8_t> rgbaFaces) {
+        if (!side || side>16384 || rgbaFaces.size()!=static_cast<std::size_t>(side)*side*4*6) throw std::invalid_argument("Metal cube upload requires six exact equally sized RGBA8 faces");
+        MTLTextureDescriptor* descriptor=[MTLTextureDescriptor new];
+        descriptor.textureType=MTLTextureTypeCube; descriptor.pixelFormat=MTLPixelFormatRGBA8Unorm;
+        descriptor.width=side; descriptor.height=side; descriptor.storageMode=MTLStorageModeShared; descriptor.usage=MTLTextureUsageShaderRead;
+        id<MTLTexture> texture=[Resources->Device newTextureWithDescriptor:descriptor];
+        if (!texture) throw std::runtime_error("Metal cube texture allocation failed");
+        const auto faceBytes=static_cast<std::size_t>(side)*side*4;
+        for (NSUInteger face=0;face<6;++face) [texture replaceRegion:MTLRegionMake2D(0,0,side,side) mipmapLevel:0 slice:face withBytes:rgbaFaces.data()+face*faceBytes bytesPerRow:side*4 bytesPerImage:faceBytes];
+        const auto identity=Resources->NextTexture++;
+        Resources->Textures.emplace(identity,texture);
+        return identity;
+    }
+
     void MetalRenderer::ReleaseTexture(std::uint64_t texture) {
         if (std::any_of(Resources->Draws.begin(), Resources->Draws.end(), [texture](const DrawPacket& draw) { return draw.Texture == texture || std::any_of(draw.MaterialTextures.begin(),draw.MaterialTextures.end(),[texture](const MaterialTexture& binding) { return binding.Texture == texture; }); })) throw std::logic_error("Metal texture release: resource is still queued for drawing");
         if (Resources->Textures.erase(texture) != 1) throw std::invalid_argument("Metal texture release: unknown resource identity");
@@ -221,6 +242,7 @@ namespace helengine::apple {
         if (resource == Resources->Textures.end()) throw std::invalid_argument("Metal texture update: unknown resource identity");
         if (std::any_of(Resources->Draws.begin(), Resources->Draws.end(), [identity](const DrawPacket& draw) { return (!draw.Rounded && draw.Texture == identity) || std::any_of(draw.MaterialTextures.begin(),draw.MaterialTextures.end(),[identity](const MaterialTexture& binding) { return binding.Texture == identity; }); })) throw std::logic_error("Metal texture update: resource is still queued for drawing");
         id<MTLTexture> texture = resource->second;
+        if (texture.textureType!=MTLTextureType2D || texture.pixelFormat!=MTLPixelFormatRGBA8Unorm) throw std::invalid_argument("Metal atlas updates require an RGBA8 2D texture");
         if (width == 0 || height == 0 || static_cast<std::uint64_t>(x)+width > texture.width || static_cast<std::uint64_t>(y)+height > texture.height || rowPitch < static_cast<std::size_t>(width)*4 || rowPitch%4 != 0 || height-1 > (std::numeric_limits<std::size_t>::max()-static_cast<std::size_t>(width)*4)/rowPitch || rgba.size() < rowPitch*(height-1)+static_cast<std::size_t>(width)*4) throw std::invalid_argument("Metal texture update: invalid region, pitch or RGBA8 payload");
         [texture replaceRegion:MTLRegionMake2D(x,y,width,height) mipmapLevel:0 withBytes:rgba.data() bytesPerRow:rowPitch];
     }
@@ -228,6 +250,7 @@ namespace helengine::apple {
     void MetalRenderer::Submit(std::span<const Vertex> vertices, std::uint64_t texture) {
         if (vertices.empty() || vertices.size() % 3 != 0) throw std::invalid_argument("Metal triangles require a nonempty multiple of three vertices");
         if (!Resources->Textures.contains(texture)) throw std::invalid_argument("Metal draw: texture resource is unavailable");
+        if (Resources->Textures.at(texture).textureType!=MTLTextureType2D) throw std::invalid_argument("Metal 2D primitives cannot sample a cube texture");
         DrawPacket packet;
         packet.Vertices.assign(vertices.begin(),vertices.end());
         packet.Texture = texture;
@@ -337,6 +360,7 @@ namespace helengine::apple {
         for (const auto& required : resource->second.Required) {
             if (required.Kind == 0 && std::none_of(buffers.begin(),buffers.end(),[&required](const MaterialBuffer& buffer) { return buffer.Slot == required.Slot && (buffer.Stages&required.Stage) && buffer.Bytes.size()>=required.Bytes; })) throw std::invalid_argument("Authored Metal material is missing a required reflected constant buffer or its payload is too short");
             if (required.Kind == 1 && std::none_of(textures.begin(),textures.end(),[&required](const MaterialTexture& texture) { return texture.Slot == required.Slot && (texture.Stages&required.Stage); })) throw std::invalid_argument("Authored Metal material is missing a required reflected texture");
+            if (required.Kind == 1) for (const auto& binding : textures) if (binding.Slot==required.Slot && (binding.Stages&required.Stage) && ((Resources->Textures.at(binding.Texture).textureType==MTLTextureTypeCube)!=required.Cube)) throw std::invalid_argument("Authored Metal texture dimension does not match reflected 2D/cube requirement");
         }
         DrawPacket packet;
         packet.Texture = 0;

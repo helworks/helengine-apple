@@ -13,5 +13,7 @@ namespace helengine::apple {
         std::uint32_t Stage;
         /// Minimum constant-buffer byte size reported by Metal; zero for textures and samplers.
         std::size_t Bytes;
+        /// Distinguishes separate cube sampling from 2D sampling before native resource binding.
+        bool Cube = false;
     };
 }

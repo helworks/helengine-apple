@@ -10,6 +10,20 @@ struct RasterVertex { float4 position [[position]]; float2 uv; float4 color; };
 struct MeshVertex { packed_float3 position; packed_float3 normal; float2 uv; };
 /// Row-major engine matrix bytes appear transposed in Metal column-major storage.
 struct MeshDrawUniform { float4x4 transform; float4 color; };
+/// Mirrors the required 144-byte native shadow payload without changing configured engine math types.
+struct ShadowDrawUniform { float4x4 worldViewProjection; float4x4 world; float4 pointLight; };
+/// Carries projected raster depth and perspective-correct world position for actual shadow casters.
+struct ShadowRasterVertex { float4 position [[position]]; float3 worldPosition; };
+
+/// Projects indexed casters into the selected real light/cube-face view.
+vertex ShadowRasterVertex shadow_vertex(uint id [[vertex_id]],constant MeshVertex* input [[buffer(0)]],constant ShadowDrawUniform& uniforms [[buffer(1)]]) {
+    float4 position=float4(float3(input[id].position),1);
+    return {uniforms.worldViewProjection*position,(uniforms.world*position).xyz};
+}
+/// Stores true normalized projected depth or radial point-light distance into the R32Float sampleable target.
+fragment float shadow_fragment(ShadowRasterVertex input [[stage_in]],constant ShadowDrawUniform& uniforms [[buffer(1)]]) {
+    return uniforms.pointLight.w>0 ? saturate(length(input.worldPosition-uniforms.pointLight.xyz)/uniforms.pointLight.w) : input.position.z;
+}
 
 /// Applies the fixed GPU payload and preserves engine row-vector transforms through the storage transpose.
 vertex RasterVertex mesh_vertex(uint id [[vertex_id]], constant MeshVertex* input [[buffer(0)]], constant MeshDrawUniform& uniforms [[buffer(1)]]) {

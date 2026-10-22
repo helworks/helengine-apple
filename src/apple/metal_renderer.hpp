@@ -5,6 +5,7 @@
 #include "apple/mesh_draw_uniform.hpp"
 #include "apple/material_buffer.hpp"
 #include "apple/material_texture.hpp"
+#include "apple/shadow_draw.hpp"
 #include <string_view>
 #include <array>
 #include <optional>
@@ -34,6 +35,14 @@ namespace helengine::apple {
         std::string DeviceName() const;
         /// Uploads validated tightly packed RGBA8 texels and returns an owned resource identity.
         std::uint64_t UploadTexture(std::uint32_t width, std::uint32_t height, std::span<const std::uint8_t> rgba);
+        /// Uploads all six RGBA8 faces in Metal's +X,-X,+Y,-Y,+Z,-Z order with exact payload validation.
+        std::uint64_t UploadCubeTexture(std::uint32_t side,std::span<const std::uint8_t> rgbaFaces);
+        /// Allocates a sampleable R32Float shadow target and clears every real face to neutral depth one.
+        std::uint64_t CreateShadowTexture(std::uint32_t width,std::uint32_t height,bool cube);
+        /// Renders actual indexed casters into one shadow face with a Depth32 attachment and synchronous completion.
+        void RenderShadowMeshes(std::uint64_t target,std::uint32_t face,std::span<const ShadowDraw> draws);
+        /// Reads completed float shadow texels directly for GPU depth/face-isolation tests.
+        std::vector<float> ReadShadowTexture(std::uint64_t target,std::uint32_t face) const;
         /// Releases a known texture only after synchronous frame completion.
         void ReleaseTexture(std::uint64_t texture);
         /// Updates an exact RGBA8 region after validating source row pitch and destination bounds.

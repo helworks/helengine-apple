@@ -67,7 +67,7 @@ add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/helengine.metallib"
     COMMAND "${XCRUN}" --sdk "${HELENGINE_METAL_SDK}" metallib "${CMAKE_CURRENT_BINARY_DIR}/primitives.air" -o "${CMAKE_CURRENT_BINARY_DIR}/helengine.metallib"
     DEPENDS src/shaders/primitives.metal VERBATIM)
 add_custom_target(helengine_metal_library ALL DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/helengine.metallib")
-add_library(helengine_metal STATIC src/apple/metal_renderer.mm)
+add_library(helengine_metal STATIC src/apple/metal_renderer.mm src/apple/metal_shadow_renderer.mm)
 target_include_directories(helengine_metal PUBLIC src)
 target_compile_options(helengine_metal PRIVATE -fobjc-arc -Wall -Wextra -Werror)
 target_link_libraries(helengine_metal PUBLIC "-framework Metal" "-framework QuartzCore" "-framework Foundation")

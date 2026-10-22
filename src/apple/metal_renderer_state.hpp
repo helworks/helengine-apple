@@ -21,6 +21,8 @@ namespace helengine::apple {
         id<MTLRenderPipelineState> RoundedPipeline;
         /// Indexed position/normal/UV pipeline with a depth attachment.
         id<MTLRenderPipelineState> MeshPipeline;
+        /// Native R32Float shadow-depth pipeline for actual projected and radial cube caster passes.
+        id<MTLRenderPipelineState> ShadowPipeline;
         /// Depth-compatible primitive pipeline used when 2D overlays share a mixed frame.
         id<MTLRenderPipelineState> PrimitiveDepthPipeline;
         /// Depth-compatible rounded pipeline used for mixed-frame overlays.

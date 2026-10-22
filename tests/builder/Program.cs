@@ -65,6 +65,9 @@ public static class Program {
             var compiled = backend.Compile(new(new ShaderSourceInfo("material-pair.hlsl",pairSource),entry,entry,stage,ShaderCompileTarget.Metal,new ShaderModel(5,0),"default",[],request.Options),new ShaderFilesystemIncludeResolver(Directory.GetCurrentDirectory()));
             File.WriteAllBytes(Path.Combine(shaderOutput,stage == ShaderStage.Vertex ? "vertex.metallib" : "fragment.metallib"),compiled.Binary.Bytecode);
         }
+        const string cubeSource = "TextureCube DiffuseCube : register(t0); SamplerState DiffuseSampler : register(s0); cbuffer BaseColorBuffer : register(b1) { float4 BaseColor; }; struct VOut { float4 Position : SV_Position; float2 Uv : TEXCOORD0; }; float4 PSMain(VOut i) : SV_Target { return DiffuseCube.SampleLevel(DiffuseSampler,float3(i.Uv*0.1,1),0)*BaseColor; }";
+        var cube = backend.Compile(new(new ShaderSourceInfo("material-cube.hlsl",cubeSource),"PSMain","PSMain",ShaderStage.Pixel,ShaderCompileTarget.Metal,new ShaderModel(5,0),"default",[],request.Options),new ShaderFilesystemIncludeResolver(Directory.GetCurrentDirectory()));
+        File.WriteAllBytes(Path.Combine(shaderOutput,"fragment-cube.metallib"),cube.Binary.Bytecode);
         const string arraySource = "cbuffer BaseColorBuffer : register(b1) { float4 BaseColor; }; struct VOut { float4 Position : SV_Position; float2 Uv : TEXCOORD0; }; Texture2D DiffuseTextures[2] : register(t0); SamplerState DiffuseSamplers[2] : register(s0); float4 PSMain(VOut i) : SV_Target { return (DiffuseTextures[0].Sample(DiffuseSamplers[0],i.Uv)+DiffuseTextures[1].Sample(DiffuseSamplers[1],i.Uv))*0.5*BaseColor; }";
         bool arraysRejected = false;
         try { backend.Compile(new(new ShaderSourceInfo("material-array.hlsl",arraySource),"PSMain","PSMain",ShaderStage.Pixel,ShaderCompileTarget.Metal,new ShaderModel(5,0),"default",[],request.Options),new ShaderFilesystemIncludeResolver(Directory.GetCurrentDirectory())); }

@@ -46,6 +46,19 @@ public:
         if (pixels[center] != 16 || pixels[center+1] != 128 || pixels[center+2] != 56 || pixels[center+3] != 255) throw std::runtime_error("Actual authored Metal material sampled/tinted pixels incorrectly");
         renderer.ReleaseMaterial(material);
         std::cout << "Authored single-texture material pixels verified\n" << std::flush;
+        const auto cubeFragment=Read(root+"/fragment-cube.metallib");
+        const auto cubeMaterial=renderer.UploadMaterial(vertex,"VSMain",cubeFragment,"PSMain");
+        rejected=false;
+        try { renderer.SubmitMaterialMesh(mesh,cubeMaterial,buffers,bindings); } catch (const std::invalid_argument&) { rejected=true; }
+        if (!rejected) throw std::runtime_error("Authored cube shader accepted a 2D texture");
+        const std::array<uint8_t,24> faces={255,0,0,255,0,255,0,255,0,0,255,255,255,255,0,255,32,128,224,255,255,0,255,255};
+        const auto cubeTexture=renderer.UploadCubeTexture(1,faces);
+        const std::array<MaterialTexture,1> cubeBindings={MaterialTexture{0,2,cubeTexture}};
+        renderer.SubmitMaterialMesh(mesh,cubeMaterial,buffers,cubeBindings);
+        const auto cubePixels=renderer.RenderOffscreen(64,64);
+        if (cubePixels[center]!=16 || cubePixels[center+1]!=128 || cubePixels[center+2]!=56 || cubePixels[center+3]!=255) throw std::runtime_error("Actual authored cube sampling selected the wrong face or data");
+        renderer.ReleaseMaterial(cubeMaterial); renderer.ReleaseTexture(cubeTexture);
+        std::cout << "Authored cube +Z face pixels and dimension rejection verified\n" << std::flush;
         renderer.ReleaseMesh(mesh);
         renderer.ReleaseTexture(texture);
     }

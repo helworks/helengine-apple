@@ -1,4 +1,5 @@
 #include "apple/metal_renderer.hpp"
+#include "shadow_depth_validation.hpp"
 #include <iostream>
 #include <stdexcept>
 #include <array>
@@ -45,7 +46,8 @@ int main() {
         if (moved[(32*64+48)*4+2] != 255 || moved[(32*64+16)*4+2] != 0) throw std::runtime_error("Metal row-vector matrix payload translation failed");
         renderer.ReleaseMesh(mesh);
         renderer.ReleaseTexture(materialTexture);
-        std::cout << "Metal offscreen readback passed on " << renderer.DeviceName() << '\n';
+        ShadowDepthValidation::Run();
+        std::cout << "Metal offscreen readback and projected/radial cube shadow depths passed on " << renderer.DeviceName() << '\n';
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "Metal offscreen validation failed: " << error.what() << '\n';
