@@ -5,6 +5,7 @@
 #include <cstring>
 #include <limits>
 #include <cmath>
+#include <cstdlib>
 #include <stdexcept>
 
 namespace helengine::apple {
@@ -52,7 +53,47 @@ namespace helengine::apple {
         depth.depthWriteEnabled = NO;
         OverlayDepthState = [Device newDepthStencilStateWithDescriptor:depth];
         if (!MeshDepthState || !OverlayDepthState) throw std::runtime_error("Metal depth state allocation failed");
+        MTLSamplerDescriptor* sampler = [MTLSamplerDescriptor new];
+        sampler.minFilter = MTLSamplerMinMagFilterLinear;
+        sampler.magFilter = MTLSamplerMinMagFilterLinear;
+        sampler.sAddressMode = MTLSamplerAddressModeClampToEdge;
+        sampler.tAddressMode = MTLSamplerAddressModeClampToEdge;
+        MaterialSampler = [Device newSamplerStateWithDescriptor:sampler];
+        if (!MaterialSampler) throw std::runtime_error("Metal standard material sampler allocation failed");
     }
+
+    id<MTLLibrary> MetalRenderer::State::LoadLibrary(std::span<const std::uint8_t> bytes) {
+        if (bytes.size()<4 || bytes[0]!='M' || bytes[1]!='T' || bytes[2]!='L' || bytes[3]!='B') throw std::invalid_argument("Authored material requires cooked Metal library bytes");
+        void* copy = std::malloc(bytes.size());
+        if (!copy) throw std::bad_alloc();
+        std::memcpy(copy,bytes.data(),bytes.size());
+        dispatch_data_t data = dispatch_data_create(copy,bytes.size(),dispatch_get_global_queue(QOS_CLASS_DEFAULT,0),DISPATCH_DATA_DESTRUCTOR_FREE);
+        NSError* error = nil;
+        id<MTLLibrary> library = [Device newLibraryWithData:data error:&error];
+        if (!library) throw std::runtime_error("Authored Metal library rejected: "+std::string(error ? [[error localizedDescription] UTF8String] : "SDK returned no diagnostic"));
+        return library;
+    }
+
+    // Keep the iOS 15 reflection ABI available while adopting the current SDK for compilation.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    void MetalRenderer::State::ReflectArguments(MaterialResource& material,NSArray<MTLArgument*>* arguments,std::uint32_t stage) {
+        for (MTLArgument* argument in arguments) {
+            if (!argument.active) continue;
+            if (argument.type == MTLArgumentTypeBuffer) {
+                if (argument.index == 30 && stage == 1) continue;
+                if (argument.index >= 30) throw std::runtime_error("Authored Metal constant buffer overlaps reserved mesh slot 30");
+                material.Required.push_back({0,static_cast<std::uint32_t>(argument.index),stage,argument.bufferDataSize});
+            } else if (argument.type == MTLArgumentTypeTexture) {
+                if (argument.index >= 128 || argument.textureType != MTLTextureType2D) throw std::runtime_error("Authored Metal material currently requires separate 2D texture bindings");
+                material.Required.push_back({1,static_cast<std::uint32_t>(argument.index),stage,0});
+            } else if (argument.type == MTLArgumentTypeSampler) {
+                if (argument.index >= 16) throw std::runtime_error("Authored Metal sampler exceeds the native slot limit");
+                material.Required.push_back({2,static_cast<std::uint32_t>(argument.index),stage,0});
+            } else throw std::runtime_error("Authored Metal material has an unsupported reflected resource kind");
+        }
+    }
+#pragma clang diagnostic pop
 
     void MetalRenderer::State::Render(id<MTLTexture> target, id<CAMetalDrawable> drawable) {
         id<MTLCommandBuffer> command = [Queue commandBuffer];
@@ -78,7 +119,7 @@ namespace helengine::apple {
         if (!encoder) throw std::runtime_error("Metal frame: render encoder allocation failed");
         for (const DrawPacket& draw : Draws) {
             auto texture = Textures.find(draw.Texture);
-            if (!draw.Rounded && texture == Textures.end()) {
+            if (!draw.Rounded && draw.Material == 0 && texture == Textures.end()) {
                 [encoder endEncoding];
                 throw std::runtime_error("Metal frame: a queued texture was released before submission");
             }
@@ -91,6 +132,35 @@ namespace helengine::apple {
                 if (mesh == Meshes.end()) {
                     [encoder endEncoding];
                     throw std::runtime_error("Metal frame: an indexed mesh was released before submission");
+                }
+                if (draw.Material != 0) {
+                    auto material = Materials.find(draw.Material);
+                    if (material == Materials.end()) {
+                        [encoder endEncoding];
+                        throw std::runtime_error("Metal frame: authored material was released before submission");
+                    }
+                    [encoder setRenderPipelineState:material->second.Pipeline];
+                    [encoder setDepthStencilState:MeshDepthState];
+                    [encoder setVertexBuffer:mesh->second.Vertices offset:0 atIndex:30];
+                    for (const auto& binding : draw.MaterialBuffers) {
+                        id<MTLBuffer> constants = [Device newBufferWithBytes:binding.Bytes.data() length:binding.Bytes.size() options:MTLResourceStorageModeShared];
+                        if (!constants) { [encoder endEncoding]; throw std::runtime_error("Metal authored constant buffer allocation failed"); }
+                        if (binding.Stages&1) [encoder setVertexBuffer:constants offset:0 atIndex:binding.Slot];
+                        if (binding.Stages&2) [encoder setFragmentBuffer:constants offset:0 atIndex:binding.Slot];
+                    }
+                    for (const auto& binding : draw.MaterialTextures) {
+                        auto native = Textures.find(binding.Texture);
+                        if (native == Textures.end()) { [encoder endEncoding]; throw std::runtime_error("Metal frame: authored texture was released before submission"); }
+                        if (binding.Stages&1) [encoder setVertexTexture:native->second atIndex:binding.Slot];
+                        if (binding.Stages&2) [encoder setFragmentTexture:native->second atIndex:binding.Slot];
+                    }
+                    for (const auto& requirement : material->second.Required) {
+                        if (requirement.Kind != 2) continue;
+                        if (requirement.Stage&1) [encoder setVertexSamplerState:MaterialSampler atIndex:requirement.Slot];
+                        if (requirement.Stage&2) [encoder setFragmentSamplerState:MaterialSampler atIndex:requirement.Slot];
+                    }
+                    [encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle indexCount:mesh->second.IndexCount indexType:MTLIndexTypeUInt32 indexBuffer:mesh->second.Indices indexBufferOffset:0];
+                    continue;
                 }
                 [encoder setRenderPipelineState:MeshPipeline];
                 [encoder setDepthStencilState:MeshDepthState];
@@ -140,14 +210,14 @@ namespace helengine::apple {
     }
 
     void MetalRenderer::ReleaseTexture(std::uint64_t texture) {
-        if (std::any_of(Resources->Draws.begin(), Resources->Draws.end(), [texture](const DrawPacket& draw) { return draw.Texture == texture; })) throw std::logic_error("Metal texture release: resource is still queued for drawing");
+        if (std::any_of(Resources->Draws.begin(), Resources->Draws.end(), [texture](const DrawPacket& draw) { return draw.Texture == texture || std::any_of(draw.MaterialTextures.begin(),draw.MaterialTextures.end(),[texture](const MaterialTexture& binding) { return binding.Texture == texture; }); })) throw std::logic_error("Metal texture release: resource is still queued for drawing");
         if (Resources->Textures.erase(texture) != 1) throw std::invalid_argument("Metal texture release: unknown resource identity");
     }
 
     void MetalRenderer::UpdateTexture(std::uint64_t identity, std::uint32_t x, std::uint32_t y, std::uint32_t width, std::uint32_t height, std::span<const std::uint8_t> rgba, std::size_t rowPitch) {
         auto resource = Resources->Textures.find(identity);
         if (resource == Resources->Textures.end()) throw std::invalid_argument("Metal texture update: unknown resource identity");
-        if (std::any_of(Resources->Draws.begin(), Resources->Draws.end(), [identity](const DrawPacket& draw) { return !draw.Rounded && draw.Texture == identity; })) throw std::logic_error("Metal texture update: resource is still queued for drawing");
+        if (std::any_of(Resources->Draws.begin(), Resources->Draws.end(), [identity](const DrawPacket& draw) { return (!draw.Rounded && draw.Texture == identity) || std::any_of(draw.MaterialTextures.begin(),draw.MaterialTextures.end(),[identity](const MaterialTexture& binding) { return binding.Texture == identity; }); })) throw std::logic_error("Metal texture update: resource is still queued for drawing");
         id<MTLTexture> texture = resource->second;
         if (width == 0 || height == 0 || static_cast<std::uint64_t>(x)+width > texture.width || static_cast<std::uint64_t>(y)+height > texture.height || rowPitch < static_cast<std::size_t>(width)*4 || rowPitch%4 != 0 || height-1 > (std::numeric_limits<std::size_t>::max()-static_cast<std::size_t>(width)*4)/rowPitch || rgba.size() < rowPitch*(height-1)+static_cast<std::size_t>(width)*4) throw std::invalid_argument("Metal texture update: invalid region, pitch or RGBA8 payload");
         [texture replaceRegion:MTLRegionMake2D(x,y,width,height) mipmapLevel:0 withBytes:rgba.data() bytesPerRow:rowPitch];
@@ -199,6 +269,83 @@ namespace helengine::apple {
     void MetalRenderer::ReleaseMesh(std::uint64_t mesh) {
         if (std::any_of(Resources->Draws.begin(),Resources->Draws.end(),[mesh](const DrawPacket& draw) { return draw.Mesh == mesh; })) throw std::logic_error("Metal mesh release: resource is still queued for drawing");
         if (Resources->Meshes.erase(mesh)!=1) throw std::invalid_argument("Metal mesh release: unknown resource identity");
+    }
+
+    std::uint64_t MetalRenderer::UploadMaterial(std::span<const std::uint8_t> vertexLibrary,std::string_view vertexEntry,std::span<const std::uint8_t> fragmentLibrary,std::string_view fragmentEntry) {
+        if (vertexEntry.empty() || fragmentEntry.empty()) throw std::invalid_argument("Authored material requires explicit vertex and fragment entry points");
+        id<MTLLibrary> vertex = Resources->LoadLibrary(vertexLibrary);
+        id<MTLLibrary> fragment = Resources->LoadLibrary(fragmentLibrary);
+        MTLRenderPipelineDescriptor* descriptor = [MTLRenderPipelineDescriptor new];
+        descriptor.vertexFunction = [vertex newFunctionWithName:[NSString stringWithUTF8String:std::string(vertexEntry).c_str()]];
+        descriptor.fragmentFunction = [fragment newFunctionWithName:[NSString stringWithUTF8String:std::string(fragmentEntry).c_str()]];
+        if (!descriptor.vertexFunction || !descriptor.fragmentFunction) throw std::runtime_error("Authored material library did not contain its declared shader entry point");
+        descriptor.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
+        descriptor.colorAttachments[0].blendingEnabled = YES;
+        descriptor.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
+        descriptor.colorAttachments[0].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+        descriptor.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorOne;
+        descriptor.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+        descriptor.depthAttachmentPixelFormat = MTLPixelFormatDepth32Float;
+        MTLVertexDescriptor* layout = [MTLVertexDescriptor vertexDescriptor];
+        layout.attributes[0].format = MTLVertexFormatFloat3;
+        layout.attributes[0].offset = offsetof(MeshVertex,Position);
+        layout.attributes[0].bufferIndex = 30;
+        layout.attributes[1].format = MTLVertexFormatFloat3;
+        layout.attributes[1].offset = offsetof(MeshVertex,Normal);
+        layout.attributes[1].bufferIndex = 30;
+        layout.attributes[2].format = MTLVertexFormatFloat2;
+        layout.attributes[2].offset = offsetof(MeshVertex,Uv);
+        layout.attributes[2].bufferIndex = 30;
+        layout.layouts[30].stride = sizeof(MeshVertex);
+        layout.layouts[30].stepFunction = MTLVertexStepFunctionPerVertex;
+        descriptor.vertexDescriptor = layout;
+        NSError* error = nil;
+        MTLRenderPipelineReflection* reflection = nil;
+        MaterialResource material;
+        material.Pipeline = [Resources->Device newRenderPipelineStateWithDescriptor:descriptor options:MTLPipelineOptionBufferTypeInfo reflection:&reflection error:&error];
+        if (!material.Pipeline) throw std::runtime_error("Authored Metal pipeline: "+std::string(error ? [[error localizedDescription] UTF8String] : "SDK returned no diagnostic"));
+        if (!reflection) throw std::runtime_error("Authored Metal pipeline did not provide native resource reflection");
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+        Resources->ReflectArguments(material,reflection.vertexArguments,1);
+        Resources->ReflectArguments(material,reflection.fragmentArguments,2);
+#pragma clang diagnostic pop
+        const auto identity = Resources->NextMaterial++;
+        Resources->Materials.emplace(identity,std::move(material));
+        return identity;
+    }
+
+    void MetalRenderer::SubmitMaterialMesh(std::uint64_t mesh,std::uint64_t material,std::span<const MaterialBuffer> buffers,std::span<const MaterialTexture> textures) {
+        if (!Resources->Meshes.contains(mesh)) throw std::invalid_argument("Authored Metal draw requires an uploaded indexed mesh");
+        auto resource = Resources->Materials.find(material);
+        if (resource == Resources->Materials.end()) throw std::invalid_argument("Authored Metal draw requires an uploaded material");
+        for (std::size_t index=0; index<buffers.size(); ++index) {
+            const auto& binding = buffers[index];
+            if (binding.Bytes.empty() || binding.Slot>=30 || binding.Stages == 0 || binding.Stages>3) throw std::invalid_argument("Authored Metal constant binding has invalid bytes, stage or slot");
+            for (std::size_t previous=0; previous<index; ++previous) if (buffers[previous].Slot == binding.Slot && (buffers[previous].Stages&binding.Stages)) throw std::invalid_argument("Authored Metal constant bindings overlap within a stage");
+        }
+        for (std::size_t index=0; index<textures.size(); ++index) {
+            const auto& binding = textures[index];
+            if (binding.Slot>=128 || binding.Stages == 0 || binding.Stages>3 || !Resources->Textures.contains(binding.Texture)) throw std::invalid_argument("Authored Metal texture binding has an invalid resource, stage or slot");
+            for (std::size_t previous=0; previous<index; ++previous) if (textures[previous].Slot == binding.Slot && (textures[previous].Stages&binding.Stages)) throw std::invalid_argument("Authored Metal texture bindings overlap within a stage");
+        }
+        for (const auto& required : resource->second.Required) {
+            if (required.Kind == 0 && std::none_of(buffers.begin(),buffers.end(),[&required](const MaterialBuffer& buffer) { return buffer.Slot == required.Slot && (buffer.Stages&required.Stage) && buffer.Bytes.size()>=required.Bytes; })) throw std::invalid_argument("Authored Metal material is missing a required reflected constant buffer or its payload is too short");
+            if (required.Kind == 1 && std::none_of(textures.begin(),textures.end(),[&required](const MaterialTexture& texture) { return texture.Slot == required.Slot && (texture.Stages&required.Stage); })) throw std::invalid_argument("Authored Metal material is missing a required reflected texture");
+        }
+        DrawPacket packet;
+        packet.Texture = 0;
+        packet.Mesh = mesh;
+        packet.Material = material;
+        packet.Clip = Resources->Clip;
+        packet.MaterialBuffers.assign(buffers.begin(),buffers.end());
+        packet.MaterialTextures.assign(textures.begin(),textures.end());
+        Resources->Draws.push_back(std::move(packet));
+    }
+
+    void MetalRenderer::ReleaseMaterial(std::uint64_t material) {
+        if (std::any_of(Resources->Draws.begin(),Resources->Draws.end(),[material](const DrawPacket& draw) { return draw.Material == material; })) throw std::logic_error("Authored Metal material release: pipeline is still queued for drawing");
+        if (Resources->Materials.erase(material)!=1) throw std::invalid_argument("Authored Metal material release: unknown pipeline identity");
     }
 
     void MetalRenderer::SubmitRoundedRect(std::span<const Vertex> vertices, float width, float height, float radius, float border, std::array<float,4> borderColor, std::uint32_t corners) {

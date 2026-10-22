@@ -52,7 +52,11 @@ namespace helengine::apple {
         /// Loads exact cooked library bytes into the hardware device without retaining caller-owned memory.
         id<MTLLibrary> LoadLibrary(std::span<const std::uint8_t> bytes);
         /// Extracts Metal's native stage binding requirements for pre-submission material validation.
+        /// MTLArgument remains the supported reflection ABI on the declared iOS 15 deployment target.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
         void ReflectArguments(MaterialResource& material,NSArray<MTLArgument*>* arguments,std::uint32_t stage);
+#pragma clang diagnostic pop
         /// Encodes ordered draws and waits for GPU completion before callers can recycle resources.
         void Render(id<MTLTexture> target, id<CAMetalDrawable> drawable);
     };
