@@ -166,6 +166,7 @@ namespace helengine::apple {
     }
 
     void MetalRenderer::DiscardFrame() { Resources->Draws.clear(); }
+    bool MetalRenderer::HasPendingDraws() const { return !Resources->Draws.empty(); }
 
     std::vector<std::uint8_t> MetalRenderer::ValidateOffscreen() {
         if (!Resources->Draws.empty()) throw std::logic_error("Metal offscreen validation requires an empty frame");

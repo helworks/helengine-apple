@@ -40,8 +40,14 @@ public static class Program {
         const string source = "cbuffer BaseColorBuffer : register(b0) { float4 BaseColor; }; float4 VSMain(float4 p : POSITION) : SV_Position { return p + BaseColor; }";
         ShaderCompileRequest request = new(new ShaderSourceInfo("material.hlsl", source), "VSMain", "VSMain", ShaderStage.Vertex, ShaderCompileTarget.Metal, new ShaderModel(5,0), "default", [], new ShaderCompileOptions(new ShaderBindingPolicy(0,0,16,32,48), true, false, true));
         MetalShaderBackend backend = new("macos");
+        if (backend.UseSharedCache) { throw new Exception("Metal libraries from different Apple SDKs must not share the engine's target-only compile cache"); }
         var result = backend.Compile(request, new ShaderFilesystemIncludeResolver(Directory.GetCurrentDirectory()));
         if (!result.Success || result.Binary.Target != ShaderCompileTarget.Metal || System.Text.Encoding.ASCII.GetString(result.Binary.Bytecode, 0, 4) != "MTLB") { throw new Exception("Authored shader did not produce a real Metal library"); }
+        ShaderCompileRequest invalid = new(new ShaderSourceInfo("broken.hlsl", "this is not valid HLSL"), "VSMain", "VSMain", ShaderStage.Vertex, ShaderCompileTarget.Metal, new ShaderModel(5,0), "default", [], request.Options);
+        bool rejected = false;
+        try { backend.Compile(invalid, new ShaderFilesystemIncludeResolver(Directory.GetCurrentDirectory())); }
+        catch (InvalidOperationException) { rejected = true; }
+        if (!rejected) { throw new Exception("Invalid authored shader did not fail native compilation"); }
         Console.WriteLine("Authored HLSL -> SPIR-V -> MSL -> Metal library passed");
     }
 }

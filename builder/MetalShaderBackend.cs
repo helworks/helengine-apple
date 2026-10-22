@@ -5,7 +5,7 @@ using helengine;
 namespace helengine.apple.builder;
 
 /// <summary>Compiles authored HLSL through the engine shaderc frontend, pinned SPIRV-Cross and the selected Apple Metal SDK.</summary>
-public sealed class MetalShaderBackend : ShaderBackendBase {
+public sealed class MetalShaderBackend : ShaderBackendBase, IShaderBackendCachePolicy {
     /// <summary>Serializes compiler scratch use because platform outputs are overwritten in a single fixed location.</summary>
     static readonly object CompilerLock = new();
     /// <summary>Identifies whether the selected library targets macOS or iOS.</summary>
@@ -18,6 +18,9 @@ public sealed class MetalShaderBackend : ShaderBackendBase {
         if (target != "macos" && target != "ios") { throw new ArgumentException("Metal platform must be macos or ios.", nameof(target)); }
         PlatformTarget = target;
     }
+
+    /// <summary>Disables a cache keyed only by Metal target, which cannot distinguish macOS, iOS device and simulator library ABIs.</summary>
+    public bool UseSharedCache => false;
 
     /// <summary>Emits a real MTLB library and retains the SPIR-V reflection which maps preserved bindings to native Metal slots.</summary>
     protected override byte[] CompileBytecode(ShaderCompileRequest request, IShaderIncludeResolver includeResolver, out ShaderCompileDiagnostic[] diagnostics) {

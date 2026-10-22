@@ -47,5 +47,7 @@ namespace helengine::apple {
         std::vector<std::uint8_t> ValidateOffscreen();
         /// Discards transient CPU submissions when a frame is cancelled by lifecycle events.
         void DiscardFrame();
+        /// Returns whether a generated resource release must wait for this frame's GPU submission.
+        bool HasPendingDraws() const;
     };
 }
