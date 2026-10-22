@@ -54,6 +54,9 @@ public static class AppleMaterialCooker {
         float roughness = ReadOptionalFloatField(request.FieldValues, RoughnessFieldId, StandardMaterialRoughnessDefaults.DefaultRoughness);
         float metallic = ReadOptionalFloatField(request.FieldValues, MetallicFieldId, StandardMaterialMetallicDefaults.DefaultMetallic);
         float specular = ReadOptionalFloatField(request.FieldValues, SpecularFieldId, StandardMaterialSpecularDefaults.DefaultSpecular);
+        string normalTexture = request.FieldValues.TryGetValue("normal-texture-id", out string normal) ? normal : string.Empty;
+        string emissiveTexture = request.FieldValues.TryGetValue("emissive-texture-id", out string emissive) ? emissive : string.Empty;
+        float4 emissiveColor = request.FieldValues.TryGetValue("emissive-color", out string authoredEmissive) && !string.IsNullOrWhiteSpace(authoredEmissive) ? ParseBaseColor(authoredEmissive) : new float4(1f,1f,1f,0f);
         bool castsShadows = ReadOptionalBooleanField(request.FieldValues, "casts-shadow", true);
         bool receivesShadows = ReadOptionalBooleanField(request.FieldValues, "receives-shadow", true);
 
@@ -65,6 +68,8 @@ public static class AppleMaterialCooker {
             Variant = variant,
             DiffuseTextureAssetId = diffuseTextureAssetId,
             RoughnessTextureAssetId = roughnessTextureAssetId,
+            NormalTextureAssetId = normalTexture,
+            EmissiveTextureAssetId = emissiveTexture,
             CastsShadows = castsShadows,
             ReceivesShadows = receivesShadows,
             RenderState = new MaterialRenderState(),
@@ -84,6 +89,10 @@ public static class AppleMaterialCooker {
                 new MaterialConstantBufferAsset {
                     Name = StandardMaterialSpecularDefaults.SpecularBufferName,
                     Data = StandardMaterialSpecularDefaults.CreateConstantBufferData(specular)
+                },
+                new MaterialConstantBufferAsset {
+                    Name = "EmissiveColorBuffer",
+                    Data = CreateFloat4ConstantBufferData(emissiveColor)
                 }
             ]
         };

@@ -22,7 +22,9 @@ public static class Program {
             }, new NumericPrecisionPolicy(64,64));
             var result = builder.CookMaterial(request);
             var material = (ShaderMaterialAsset)helengine.files.AssetSerializer.DeserializeFromBytes(result.CookedMaterialBytes);
-            if (material.Id != "material" || material.DiffuseTextureAssetId != "authored-texture" || material.VertexProgram != "VSMain" || material.ConstantBuffers.Length != 4) { throw new Exception("Cooked material lost authored state"); }
+            if (material.Id != "material" || material.DiffuseTextureAssetId != "authored-texture" || material.VertexProgram != "VSMain" || material.ConstantBuffers.Length != 5) { throw new Exception("Cooked material lost authored state"); }
+            var emission = material.ConstantBuffers.Single(buffer => buffer.Name == "EmissiveColorBuffer");
+            if (emission.Data.Length != 16 || BitConverter.ToSingle(emission.Data,0) != 1f || BitConverter.ToSingle(emission.Data,12) != 0f) { throw new Exception("Unspecified emissive material must preserve the shared explicit white/zero-strength default"); }
             if (material.ConstantBuffers[0].Data.Length != 16 || Math.Abs(BitConverter.ToSingle(material.ConstantBuffers[0].Data, 0) - 128f/255f) > 0.0001f) { throw new Exception("Fixed GPU color layout was changed by configurable 64-bit arithmetic"); }
         }
         string safeRoot = OperatingSystem.IsWindows() ? "C:\\temp\\helengine\\macos\\staging-check" : "/tmp/helengine/macos/staging-check";
