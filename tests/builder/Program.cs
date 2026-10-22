@@ -8,6 +8,7 @@ public static class Program {
     public static int Main(string[] arguments) {
         ApplePlatformAssetBuilder[] builders = [new MacOSPlatformAssetBuilder(), new IosPlatformAssetBuilder()];
         foreach (ApplePlatformAssetBuilder builder in builders) {
+            if (builder.Definition.CodegenProfiles.Single().Settings.Single(setting => setting.SettingId == "generated-math-convention").DefaultValue != "engine-row-vector") { throw new Exception("Custom target omitted engine matrix convention"); }
             Type[] concreteBuilders = builder.GetType().Assembly.GetTypes().Where(type => !type.IsAbstract && typeof(ApplePlatformAssetBuilder).IsAssignableFrom(type)).ToArray();
             if (concreteBuilders.Length != 1) { throw new Exception("Existing assembly-only loader would select an ambiguous Apple target"); }
             if (builder.Descriptor.TargetPlatformId != builder.Definition.PlatformId) { throw new Exception("Target identity mismatch"); }
@@ -23,6 +24,14 @@ public static class Program {
             var material = (ShaderMaterialAsset)helengine.files.AssetSerializer.DeserializeFromBytes(result.CookedMaterialBytes);
             if (material.Id != "material" || material.DiffuseTextureAssetId != "authored-texture" || material.VertexProgram != "VSMain" || material.ConstantBuffers.Length != 4) { throw new Exception("Cooked material lost authored state"); }
             if (material.ConstantBuffers[0].Data.Length != 16 || Math.Abs(BitConverter.ToSingle(material.ConstantBuffers[0].Data, 0) - 128f/255f) > 0.0001f) { throw new Exception("Fixed GPU color layout was changed by configurable 64-bit arithmetic"); }
+        }
+        string safeRoot = OperatingSystem.IsWindows() ? "C:\\temp\\helengine\\macos\\staging-check" : "/tmp/helengine/macos/staging-check";
+        if (!AppleBuildWorkspace.ResolveCookedPath(safeRoot,"generated/ui/ação com espaço.asset").EndsWith(Path.Combine("cooked","ui","ação com espaço.asset"))) { throw new Exception("Cooked staging changed a Unicode/space payload path"); }
+        foreach (string unsafePath in new[] {"../escape.asset", "/absolute.asset", "C:\\absolute.asset", "cooked/../../escape.asset"}) {
+            bool rejected = false;
+            try { AppleBuildWorkspace.ResolveCookedPath(safeRoot,unsafePath); }
+            catch (InvalidOperationException) { rejected = true; }
+            if (!rejected) { throw new Exception("Unsafe cooked path accepted: " + unsafePath); }
         }
         if (builders.Select(builder => builder.Definition.PlatformId).Distinct().Count() != 2) { throw new Exception("macOS/iOS targets collapsed"); }
         foreach (ApplePlatformAssetBuilder builder in builders) {
