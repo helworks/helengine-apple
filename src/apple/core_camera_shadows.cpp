@@ -54,7 +54,7 @@ namespace helengine::apple {
     return result;
 }
 
-std::vector<ShadowDraw> CoreRenderManager3D::BuildShadowCasters(::LightComponent* light,::float4x4 viewProjection) const {
+std::vector<ShadowDraw> CoreRenderManager3D::BuildShadowCasters(::LightComponent* light,::float4x4 viewProjection) {
     std::vector<ShadowDraw> result;
     auto* drawables=get_OwnerCore()->get_ObjectManager()->get_Drawables3D();
     if (!drawables) return result;

@@ -15,6 +15,7 @@ class ShaderProgramAsset;
 class ShaderBinaryAsset;
 class ShaderRuntimeMaterial;
 class LightComponent;
+class RuntimeTexture;
 
 namespace helengine::apple {
 class CoreRenderManager2D;
@@ -76,7 +77,7 @@ class CoreRenderManager3D final : public ::RenderManager3D, public ::IShaderRend
     /// Builds configurable-precision light-space transforms using the approved existing backend formulas.
     ::float4x4 BuildShadowViewProjection(::ICamera* camera,::LightComponent* light,int face) const;
     /// Collects real same-device indexed casters respecting hierarchy, layers and authored shadow flags.
-    std::vector<ShadowDraw> BuildShadowCasters(::LightComponent* light,::float4x4 viewProjection) const;
+    std::vector<ShadowDraw> BuildShadowCasters(::LightComponent* light,::float4x4 viewProjection);
 public:
     /// Binds both generated rendering interfaces to the same native device.
     CoreRenderManager3D(MetalRenderer& renderer,CoreRenderManager2D& bridge);
