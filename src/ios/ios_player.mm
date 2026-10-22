@@ -110,6 +110,7 @@ public:
         int width=0,height=0;
         if(!SDL_GetWindowSizeInPixels(Window,&width,&height)) throw std::runtime_error(std::string("iOS drawable extent: ")+SDL_GetError());
         Lifecycle.Resize(static_cast<uint32_t>(std::max(width,0)),static_cast<uint32_t>(std::max(height,0))); Input->SetDrawableSize(std::max(width,0),std::max(height,0));
+        if(width<=0||height<=0) HasPreviousTime=false;
         if(width>0&&height>0&&(width!=Width||height!=Height)) { Width=width; Height=height; Render3D->OnWindowResize(1,width,height); HasPreviousTime=false; }
     }
 };
@@ -139,6 +140,7 @@ void IosPlayer::HandleEvent(const SDL_Event& event) {
     if(event.type==SDL_EVENT_WILL_ENTER_BACKGROUND||event.type==SDL_EVENT_DID_ENTER_BACKGROUND||event.type==SDL_EVENT_WINDOW_MINIMIZED) { s.Lifecycle.Suspend(); s.Input->Suspend(); s.Renderer->DiscardFrame(); s.HasPreviousTime=false; }
     else if(event.type==SDL_EVENT_DID_ENTER_FOREGROUND||event.type==SDL_EVENT_WINDOW_RESTORED) { s.Lifecycle.Resume(); s.Input->Resume(); s.HasPreviousTime=false; s.RefreshDrawable(); }
     else if(event.type==SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) s.RefreshDrawable();
+    else if(event.type==SDL_EVENT_LOW_MEMORY) { s.Renderer->DiscardFrame(); s.Render3D->FlushReleasedAssets(); s.Render2D->FlushReleasedTextures(); SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,"iOS memory pressure: released deferred GPU resources; active scene assets remain owned by Core."); }
 }
 SDL_AppResult IosPlayer::Iterate() {
     auto& s=*Resources; s.RefreshDrawable();
@@ -167,6 +169,7 @@ void IosPlayer::Shutdown() noexcept {
 }
 /// Initializes the real callback host; SDL still invokes AppQuit after partial initialization failure.
 SDL_AppResult SDL_AppInit(void** state,int,char**) {
+    *state=nullptr;
     try { auto host=std::make_unique<helengine::apple::IosPlayer>(); *state=host.release(); static_cast<helengine::apple::IosPlayer*>(*state)->Initialize(); return SDL_APP_CONTINUE; }
     catch(const std::exception& error) { SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,"iOS initialization: %s",error.what()); }
     catch(const std::exception* error) { SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,"iOS initialization: %s",error?error->what():"null generated exception"); delete error; }

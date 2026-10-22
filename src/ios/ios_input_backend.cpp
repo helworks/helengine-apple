@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
+#include <utility>
 
 namespace helengine::apple {
 IosInputBackend::IosInputBackend(SDL_Window* window):Window(window) {
