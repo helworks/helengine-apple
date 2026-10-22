@@ -28,6 +28,7 @@ public static class ApplePlatformDefinitionFactory {
                 ], new PlatformNumericCapabilities(helengine.NumericPrecisionPolicy.Default, [new(16,16), new(32,32), new(64,64)]))],
             [new("loose-files", "Read-only bundled content", PlatformStorageProfileKind.LooseFiles, target + "-loose-files", false)],
             [new(target + "-app-bundle", "Apple app bundle", PlatformMediaLayoutKind.InstallTree, false, false)],
-            runtimeGenerationContract: new RuntimeGenerationContract(RuntimeMaterialResolutionMode.RawShaderBacked, true, PackagedPathPolicy.ContentRelativeOnly));
+            runtimeGenerationContract: new RuntimeGenerationContract(RuntimeMaterialResolutionMode.RawShaderBacked, true, PackagedPathPolicy.ContentRelativeOnly,
+                portableInputPreprocessorSymbols: target == "macos" ? ["DESKTOP_PLATFORM"] : []));
     }
 }
