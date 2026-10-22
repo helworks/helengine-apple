@@ -39,10 +39,15 @@ for sdk in ['iphoneos', 'iphonesimulator']:
     description = subprocess.check_output(['file', str(binary)], text=True).strip()
     if 'arm64' not in description:
         raise RuntimeError('Actual iOS executable is not arm64: '+description)
+    if (output/'metal-sdk-contract.txt').read_text().strip()!=sdk:
+        raise RuntimeError('Native Metal library dependency does not match the selected SDK')
     results.append({'sdk': sdk, 'sdkVersion': subprocess.check_output(['xcrun', '--sdk', sdk, '--show-sdk-version'], text=True).strip(),
                     'executable': str(binary), 'sha256': hashlib.sha256(binary.read_bytes()).hexdigest(),
+                    'nativeMetallibSha256': hashlib.sha256((output/'helengine.metallib').read_bytes()).hexdigest(),
                     'description': description, 'unsignedCompilation': 'passed', 'executed': False})
     print(sdk+' actual generated Core unsigned link passed', flush=True)
+if results[0]['nativeMetallibSha256']==results[1]['nativeMetallibSha256']:
+    raise RuntimeError('SDK switch retained the identical native Metal library across device and simulator')
 after = {str(path.resolve()): hashlib.sha256(path.read_bytes()).hexdigest() for path in protected}
 if before != after:
     raise RuntimeError('SDK cache refresh changed the canonical generated Core or package manifest')
