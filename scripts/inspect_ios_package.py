@@ -31,11 +31,16 @@ known_valid = receipt.setdefault('knownValidSdkEvidence', {})
 for sdk, evidence in receipt['sdkEvidence'].items():
     if evidence.get('passed'):
         known_valid[sdk] = evidence
+    else:
+        receipt['sdkMismatchRegressionEvidence'] = evidence
 receipt['sdkEvidence'][arguments.sdk] = {'passed': valid, 'bundlePlatform': actual, 'packageRoot': str(package),
     'executableSha256': hashlib.sha256((bundle/'helengine_ios').read_bytes()).hexdigest(),
     'authoredShaderAssets': libraries, 'verification': 'Actual staged debug shader assets contain raw MTLB headers and the selected SDK debug provenance; opposite SDK provenance must be absent.'}
+receipt['sdkEvidence'][arguments.sdk]['cacheSignals'] = [line for line in (output/'build-cli.log').read_text().splitlines() if 'scene-package-cache' in line]
 if valid:
     known_valid[arguments.sdk] = receipt['sdkEvidence'][arguments.sdk]
+else:
+    receipt['sdkMismatchRegressionEvidence'] = receipt['sdkEvidence'][arguments.sdk]
 receipt['currentPackagedSdk'] = actual
 receipt_path.write_text(json.dumps(receipt, indent=2)+'\n')
 print(json.dumps(receipt['sdkEvidence'][arguments.sdk], indent=2))
