@@ -128,7 +128,15 @@ int ApplePlayer::Run(const AppleRunOptions& options,CorePlayerObserver* observer
         for (uint8_t byte : pixels) checksum=(checksum^byte)*1099511628211ULL;
         bool nonuniform=false;
         for (size_t index=4;index+3<pixels.size();index+=4) if (pixels[index]!=pixels[0] || pixels[index+1]!=pixels[1] || pixels[index+2]!=pixels[2] || pixels[index+3]!=pixels[3]) { nonuniform=true; break; }
-        std::cout << "core_frames=" << frames << " draw_calls=" << render3d.get_LastDrawCallCount() << " mesh_visible_samples=" << renderer.GetLastVisibleMeshSamples() << " rgba_bytes=" << pixels.size() << " checksum=" << checksum << " nonuniform=" << nonuniform << '\n';
+        bool centerNonuniform=false;
+        if (!pixels.empty()) {
+            const auto first=(static_cast<size_t>(height/4)*width+width/4)*4;
+            for (int y=height/4;y<height*3/4 && !centerNonuniform;++y) for (int x=width/4;x<width*3/4;++x) {
+                const auto index=(static_cast<size_t>(y)*width+x)*4;
+                if (pixels[index]!=pixels[first] || pixels[index+1]!=pixels[first+1] || pixels[index+2]!=pixels[first+2]) { centerNonuniform=true; break; }
+            }
+        }
+        std::cout << "core_frames=" << frames << " draw_calls=" << render3d.get_LastDrawCallCount() << " mesh_visible_samples=" << renderer.GetLastVisibleMeshSamples() << " rgba_bytes=" << pixels.size() << " checksum=" << checksum << " nonuniform=" << nonuniform << " center_nonuniform=" << centerNonuniform << '\n';
         if (options.Offscreen && (!frames || render3d.get_LastDrawCallCount()<=0 || !nonuniform)) throw std::runtime_error("Generated-core offscreen run produced no drawable content; menu validation failed");
         if (observer) observer->ValidateComplete(core);
         coreNeedsShutdown=false; core.Dispose();
