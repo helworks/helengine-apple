@@ -103,6 +103,8 @@ public:
     void Visit(::IDrawable3D* drawable) override;
     /// Reports only implemented forward rendering and the shared four-light/four-shadow fixed GPU contract.
     ::RendererBackendCapabilityProfile* GetCapabilityProfile() override;
+    /// Exposes the owned shadow target identity for native depth readback diagnostics without changing scene state.
+    uint64_t GetShadowAtlasTexture() const { return ShadowAtlas; }
     /// Visits enabled cameras in authored order and submits their real generated 2D commands.
     void Draw() override;
     /// Reports genuine submitted packets for diagnostics and offscreen assertions.

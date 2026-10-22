@@ -1,8 +1,15 @@
 #pragma once
 #include "apple/core_player_observer.hpp"
 #include "apple/metal_renderer.hpp"
+#include "apple/core_render_manager_3d.hpp"
 #include "Core.hpp"
 #include "RenderManager3D.hpp"
+#include "ObjectManager.hpp"
+#include "Entity.hpp"
+#include "Component.hpp"
+#include "LightComponent.hpp"
+#include "IDrawable3D.hpp"
+#include "RuntimeMaterial.hpp"
 #include <algorithm>
 #include <iostream>
 #include <stdexcept>
@@ -24,6 +31,21 @@ public:
         if (frame!=2) return;
         auto* manager=core.get_RenderManager3D();
         if (!manager->get_ShadowsEnabled()) throw std::runtime_error("Shadow receiver validation requires the authored enabled shadow policy");
+        auto* native=dynamic_cast<CoreRenderManager3D*>(manager);
+        const auto depths=renderer.ReadShadowTexture(native->GetShadowAtlasTexture(),0);
+        const auto written=std::count_if(depths.begin(),depths.end(),[](float value) { return value<0.9999f; });
+        int lights=0,receivers=0;
+        auto* entities=core.get_ObjectManager()->get_Entities();
+        for (int32_t index=0;index<entities->get_Count();++index) {
+            auto* components=(*entities)[index]->get_Components();
+            for (int32_t component=0;component<components->get_Count();++component) if (auto* light=dynamic_cast<::LightComponent*>((*components)[component])) if (light->get_ShadowsEnabled()) ++lights;
+        }
+        auto* drawables=core.get_ObjectManager()->get_Drawables3D();
+        for (int32_t index=0;index<drawables->get_Count();++index) {
+            auto* materials=(*drawables)[index]->get_Materials();
+            for (int32_t material=0;material<materials->Length;++material) if ((*materials)[material]->get_ReceivesShadows()) ++receivers;
+        }
+        std::cout << "shadow_atlas_written_texels=" << written << " authored_shadow_lights=" << lights << " authored_shadow_receivers=" << receivers << '\n';
         manager->set_ShadowsEnabled(false); core.Draw();
         const auto unshadowed=renderer.RenderOffscreen(width,height);
         manager->set_ShadowsEnabled(true); core.Draw();
