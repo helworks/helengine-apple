@@ -86,5 +86,3 @@ void AppleCpuProfileSink::FlushFrame() {
 
 AppleCpuProfileSink::FrameSummary AppleCpuProfileSink::GetLastFrameSummary() const { return LastFrame; }
 }
-
-

@@ -8,5 +8,3 @@ namespace helengine::apple {
 /// <summary>Publishes component/entity/stage counters after the measured Core frame and emits its Tracy frame marker.</summary>
 void FlushAppleProfilerFrame(::Core* core);
 }
-
-

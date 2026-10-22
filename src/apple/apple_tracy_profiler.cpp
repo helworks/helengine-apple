@@ -34,5 +34,3 @@ namespace helengine::apple {
 void FlushAppleProfilerFrame(::Core*) {}
 }
 #endif
-
-

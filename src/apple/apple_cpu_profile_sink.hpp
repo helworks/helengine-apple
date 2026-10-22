@@ -77,5 +77,3 @@ private:
     FrameSummary LastFrame;
 };
 }
-
-
