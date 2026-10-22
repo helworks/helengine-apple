@@ -3,6 +3,7 @@
 #include "apple/sdl_input_backend.hpp"
 #include "apple/sdl_replay_gamepad.hpp"
 #include "Core.hpp"
+#include "RenderManager3D.hpp"
 #include "ObjectManager.hpp"
 #include "Entity.hpp"
 #include "Component.hpp"
