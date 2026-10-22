@@ -48,13 +48,16 @@ public static class Program {
         if (builders.Select(builder => builder.Definition.PlatformId).Distinct().Count() != 2) { throw new Exception("macOS/iOS targets collapsed"); }
         foreach (ApplePlatformAssetBuilder builder in builders) {
             ShaderBackendRegistry registry = new();
-            builder.RegisterShaderBackends(registry);
+            builder.RegisterShaderBackends(registry, AppleCookContextTests.Create(builder.Definition.PlatformId, builder.Definition.PlatformId == "macos" ? "macosx" : "iphoneos"));
             if (!registry.ContainsTarget(ShaderCompileTarget.Metal)) { throw new Exception("Apple shader contributor did not register Metal"); }
         }
         if (arguments.Contains("--shader")) { ValidateNativeShader("macos"); }
         if (arguments.Contains("--shader-ios")) { ValidateNativeShader("ios"); }
+        if (arguments.Contains("--shader-context")) { AppleCookContextTests.RunNativeFrozenSdk(); }
         BuildWorkspaceTests.Run();
         AppleSdkSelectionTests.Run();
+        AppleCookContextTests.Run();
+        AppleCookContextStagingTests.Run();
         Console.WriteLine("Apple builder metadata: 2 targets, 3 exact profiles, Metal, numeric policy and required inputs passed");
         return 0;
     }
@@ -63,7 +66,7 @@ public static class Program {
     static void ValidateNativeShader(string target) {
         const string source = "cbuffer BaseColorBuffer : register(b0) { float4 BaseColor; }; float4 VSMain(float4 p : POSITION) : SV_Position { return p + BaseColor; }";
         ShaderCompileRequest request = new(new ShaderSourceInfo("material.hlsl", source), "VSMain", "VSMain", ShaderStage.Vertex, ShaderCompileTarget.Metal, new ShaderModel(5,0), "default", [], new ShaderCompileOptions(new ShaderBindingPolicy(0,0,16,32,48), true, false, true));
-        MetalShaderBackend backend = new(target);
+        MetalShaderBackend backend = new(target, AppleCookContext.Capture(target));
         if (backend.UseSharedCache) { throw new Exception("Metal libraries from different Apple SDKs must not share the engine's target-only compile cache"); }
         var result = backend.Compile(request, new ShaderFilesystemIncludeResolver(Directory.GetCurrentDirectory()));
         if (!result.Success || result.Binary.Target != ShaderCompileTarget.Metal || System.Text.Encoding.ASCII.GetString(result.Binary.Bytecode, 0, 4) != "MTLB") { throw new Exception("Authored shader did not produce a real Metal library"); }

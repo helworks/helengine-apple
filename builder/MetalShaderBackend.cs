@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
 using helengine;
+using helengine.baseplatform.Builders;
 
 namespace helengine.apple.builder;
 
@@ -12,11 +13,15 @@ public sealed class MetalShaderBackend : ShaderBackendBase, IShaderBackendCacheP
     readonly string PlatformTarget;
     /// <summary>Shares the exact engine HLSL IO, descriptor binding and SPIR-V environment configuration.</summary>
     readonly AppleSpirvFrontend Frontend = new();
+    /// <summary>Retains the exact immutable SDK selection captured before cache lookup and shader registration.</summary>
+    public PlatformCookContext CookContext { get; }
 
     /// <summary>Creates a target-specific compiler while retaining a single shared Metal implementation.</summary>
-    public MetalShaderBackend(string target) : base(ShaderCompileTarget.Metal, new ShaderBackendCapabilities(new ShaderModel(4,0), new ShaderModel(6,7), [ShaderStage.Vertex, ShaderStage.Pixel], false), "Metal") {
+    public MetalShaderBackend(string target, PlatformCookContext context) : base(ShaderCompileTarget.Metal, new ShaderBackendCapabilities(new ShaderModel(4,0), new ShaderModel(6,7), [ShaderStage.Vertex, ShaderStage.Pixel], false), "Metal") {
         if (target != "macos" && target != "ios") { throw new ArgumentException("Metal platform must be macos or ios.", nameof(target)); }
+        AppleCookContext.Require(target, context);
         PlatformTarget = target;
+        CookContext = context;
     }
 
     /// <summary>Disables a cache keyed only by Metal target, which cannot distinguish macOS, iOS device and simulator library ABIs.</summary>
@@ -46,9 +51,7 @@ public sealed class MetalShaderBackend : ShaderBackendBase, IShaderBackendCacheP
             using (JsonDocument reflected = JsonDocument.Parse(File.ReadAllText(reflection))) {
                 if (!reflected.RootElement.TryGetProperty("entryPoints", out JsonElement entryPoints) || entryPoints.GetArrayLength() == 0) { throw new InvalidOperationException("Metal intermediate reflection did not report a shader entry point."); }
             }
-            string sdk = AppleSdkSelection.Resolve(PlatformTarget, Environment.GetEnvironmentVariable("HELENGINE_APPLE_SDK"));
-            string sdkVersion = Run("/usr/bin/xcrun", ["--sdk", sdk, "--show-sdk-version"], root).Trim();
-            if (sdkVersion != "26.2") { throw new InvalidOperationException("Selected Apple shader SDK differs from the validated toolchain lock: " + sdkVersion); }
+            string sdk = CookContext.NativeSdk.Name;
             List<string> compile = ["--sdk", sdk, "metal", PlatformTarget == "macos" ? "-std=macos-metal2.3" : "-std=ios-metal2.3", request.Options.Optimize ? "-O3" : "-O0", "-c", metal, "-o", air];
             if (request.Options.GenerateDebugInfo) { compile.Add("-gline-tables-only"); }
             if (request.Options.TreatWarningsAsErrors) { compile.Add("-Werror"); }

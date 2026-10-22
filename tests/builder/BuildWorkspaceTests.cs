@@ -16,7 +16,8 @@ public sealed class BuildWorkspaceTests : IPlatformBuildProgressReporter, IPlatf
         File.WriteAllText(Path.Combine(staged,"generated","fonts","ação com espaço.font"),"real cooked artifact bytes");
         PlatformBuildManifest manifest = new(1,"project","1.0.0","1.0.0","macos","1.0.0","",[],[],
             [new("generated/fonts/ação com espaço.font","font-artifact","hash","font","default")],[],[],new("macos-loose-files",[]),[],PlatformBuildRuntimeFeatureManifest.Empty);
-        PlatformBuildRequest request = new(manifest,[new("macos","macos","macos","debug")],[new("debug","Debug",new("metal","rgba8","pcm","hele",PlatformSerializationEndianness.LittleEndian))],output,root,"debug","metal","default",new Dictionary<string,string>(),new Dictionary<string,string>(),new Dictionary<string,string>(),executionScope: PlatformBuildExecutionScope.AssetsOnly);
+        manifest.CookContext = AppleCookContextTests.Create("macos", "macosx");
+        PlatformBuildRequest request = new(AppleCookContextTests.Create("macos", "macosx"),manifest,[new("macos","macos","macos","debug")],[new("debug","Debug",new("metal","rgba8","pcm","hele",PlatformSerializationEndianness.LittleEndian))],output,root,"debug","metal","default",new Dictionary<string,string>(),new Dictionary<string,string>(),new Dictionary<string,string>(),executionScope: PlatformBuildExecutionScope.AssetsOnly);
         string original = Directory.GetCurrentDirectory();
         try {
             Directory.SetCurrentDirectory(staged);

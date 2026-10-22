@@ -26,6 +26,10 @@ public static class AppleBuildWorkspace {
             throw new NotSupportedException($"Apple target '{target}' build profile '{request.SelectedBuildProfileId}' cannot enable 'codegen-generated-function-profiling'; generated scopes require the native 'profiler' profile with Tracy linkage.");
         }
         if (profile == "Profiler" && target == "ios") { throw new NotSupportedException("iOS Profiler requires a verified native runtime capture."); }
+        PlatformNativeSdkSelection nativeSdk = AppleCookContext.Require(target, request.CookContext);
+        if (request.Manifest.CookContext == null || request.Manifest.CookContext.CacheIdentity != request.CookContext.CacheIdentity) {
+            throw new InvalidOperationException("Apple cooked manifest SDK/context identity must match the captured native build context before staging.");
+        }
         cancellationToken.ThrowIfCancellationRequested();
         string staged = Directory.GetCurrentDirectory();
         string output = Path.GetFullPath(request.OutputRoot);
@@ -60,16 +64,16 @@ public static class AppleBuildWorkspace {
         string code = Path.Combine(staged, "code");
         if (!Directory.Exists(code)) { throw new DirectoryNotFoundException("Generated project C++ is required: " + code); }
         string repository = ResolveRepositoryRoot();
-        string sdk = AppleSdkSelection.Resolve(target, Environment.GetEnvironmentVariable("HELENGINE_APPLE_SDK"));
+        string sdk = nativeSdk.Name;
         string native = Path.Combine("/tmp/helengine", target);
         string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         string cmake = Path.Combine(home, "dev/helworks/tools/cmake-3.31.12-macos-universal/CMake.app/Contents/bin/cmake");
-        List<string> configure = ["-S", repository, "-B", native, "-DHELENGINE_DIAGNOSTIC_ONLY=OFF", "-DHELENGINE_CORE_CPP_ROOT=" + Path.GetFullPath(request.GeneratedCoreCppRootPath), "-DHELENGINE_CODE_ROOT=" + code, "-DHELENGINE_CONTENT_ROOT=" + output, "-DHELENGINE_NATIVE_PROFILE=" + profile, "-DCMAKE_OSX_ARCHITECTURES=arm64", "-DCMAKE_BUILD_TYPE=" + profile];
+        List<string> configure = ["-S", repository, "-B", native, "-DHELENGINE_DIAGNOSTIC_ONLY=OFF", "-DHELENGINE_CORE_CPP_ROOT=" + Path.GetFullPath(request.GeneratedCoreCppRootPath), "-DHELENGINE_CODE_ROOT=" + code, "-DHELENGINE_CONTENT_ROOT=" + output, "-DHELENGINE_NATIVE_PROFILE=" + profile, "-DCMAKE_OSX_ARCHITECTURES=arm64", "-DCMAKE_OSX_SYSROOT=" + sdk, "-DCMAKE_BUILD_TYPE=" + profile];
         foreach (string dimension in new[] { "width", "height" }) {
             if (!request.SelectedGraphicsOptionValues.TryGetValue("default-" + dimension, out string value) || !int.TryParse(value, out int pixels) || pixels < 1 || pixels > 16384) { throw new InvalidOperationException("Apple selected graphics option default-" + dimension + " must contain a pixel count between 1 and 16384."); }
             configure.Add("-DHELENGINE_APPLE_DEFAULT_" + dimension.ToUpperInvariant() + "=" + pixels.ToString(System.Globalization.CultureInfo.InvariantCulture));
         }
-        if (target == "ios") { configure.AddRange(["-G", "Xcode", "-DCMAKE_SYSTEM_NAME=iOS", "-DCMAKE_OSX_SYSROOT=" + sdk, "-DCMAKE_OSX_DEPLOYMENT_TARGET=15.0", "-DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO"]); }
+        if (target == "ios") { configure.AddRange(["-G", "Xcode", "-DCMAKE_SYSTEM_NAME=iOS", "-DCMAKE_OSX_DEPLOYMENT_TARGET=15.0", "-DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO"]); }
         await RunAsync(cmake, configure, native, "player-configure.log", cancellationToken);
         await RunAsync(cmake, ["--build", native, "--config", profile, "-j", "6"], native, "player-build.log", cancellationToken);
         string sourceBundle = Path.Combine(native, target == "ios" ? profile + "-" + sdk : "", "helengine_" + target + ".app");

@@ -8,7 +8,7 @@ using helengine.baseplatform.Results;
 namespace helengine.apple.builder;
 
 /// <summary>Shares Apple metadata while rejecting unimplemented cook/runtime stages with actionable errors.</summary>
-public abstract class ApplePlatformAssetBuilder : IPlatformAssetBuilder, helengine.IShaderBackendRegistryContributor {
+public abstract class ApplePlatformAssetBuilder : IPlatformAssetBuilder, helengine.IShaderBackendRegistryContributor, helengine.IContextualShaderBackendRegistryContributor, IPlatformCookContextProvider {
     /// <summary>Creates the target-specific descriptor exposed by the shared Apple builder assembly.</summary>
     protected ApplePlatformAssetBuilder(string target) {
         Definition = ApplePlatformDefinitionFactory.Create(target);
@@ -22,10 +22,21 @@ public abstract class ApplePlatformAssetBuilder : IPlatformAssetBuilder, helengi
     /// <summary>Gets target profiles, precision capabilities and the shared Metal graphics contract.</summary>
     public PlatformDefinition Definition { get; }
 
-    /// <summary>Contributes the actual target-specific Metal compiler to the portable authoring registry.</summary>
+    /// <summary>Rejects legacy registration which cannot carry the immutable SDK/cache identity.</summary>
     public void RegisterShaderBackends(helengine.ShaderBackendRegistry shaderBackendRegistry) {
         if (shaderBackendRegistry == null) { throw new ArgumentNullException(nameof(shaderBackendRegistry)); }
-        shaderBackendRegistry.Register(new MetalShaderBackend(Definition.PlatformId));
+        throw new InvalidOperationException("Apple shader registration requires the captured PlatformCookContext overload.");
+    }
+
+    /// <summary>Captures the effective SDK and shared compiler identity exactly once for the caller's build.</summary>
+    public PlatformCookContext CaptureCookContext() {
+        return AppleCookContext.Capture(Definition.PlatformId);
+    }
+
+    /// <summary>Registers a compiler bound to the same immutable SDK used by scene caching and native staging.</summary>
+    public void RegisterShaderBackends(helengine.ShaderBackendRegistry shaderBackendRegistry, PlatformCookContext context) {
+        if (shaderBackendRegistry == null) { throw new ArgumentNullException(nameof(shaderBackendRegistry)); }
+        shaderBackendRegistry.Register(new MetalShaderBackend(Definition.PlatformId, context));
     }
 
     /// <summary>Serializes the engine material format and preserves authored shader, texture and fixed GPU buffer identities.</summary>
