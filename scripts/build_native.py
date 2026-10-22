@@ -18,7 +18,7 @@ arguments = parser.parse_args()
 if platform.system() != 'Darwin':
     parser.error('Apple SDK builds must run from the actual git checkout on macOS')
 if not arguments.diagnostic:
-    parser.error('Generated-core player integration is incomplete; --diagnostic is required for native host/GPU validation')
+    parser.error('Use --diagnostic for native SDK/GPU checks; build the actual generated player through the project CLI or validate_core.py')
 if arguments.profile == 'Profiler':
     parser.error('Profiler requires generated scope integration and an actual verified capture')
 root = pathlib.Path(__file__).resolve().parent.parent
