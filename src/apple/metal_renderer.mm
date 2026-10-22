@@ -35,6 +35,23 @@ namespace helengine::apple {
         descriptor.fragmentFunction = [library newFunctionWithName:@"rounded_fragment"];
         RoundedPipeline = [Device newRenderPipelineStateWithDescriptor:descriptor error:&error];
         if (!RoundedPipeline) throw std::runtime_error("Metal rounded rectangle pipeline: " + std::string([[error localizedDescription] UTF8String]));
+        descriptor.depthAttachmentPixelFormat = MTLPixelFormatDepth32Float;
+        RoundedDepthPipeline = [Device newRenderPipelineStateWithDescriptor:descriptor error:&error];
+        if (!RoundedDepthPipeline) throw std::runtime_error("Metal rounded depth-compatible pipeline: " + std::string([[error localizedDescription] UTF8String]));
+        descriptor.fragmentFunction = [library newFunctionWithName:@"primitive_fragment"];
+        PrimitiveDepthPipeline = [Device newRenderPipelineStateWithDescriptor:descriptor error:&error];
+        if (!PrimitiveDepthPipeline) throw std::runtime_error("Metal primitive depth-compatible pipeline: " + std::string([[error localizedDescription] UTF8String]));
+        descriptor.vertexFunction = [library newFunctionWithName:@"mesh_vertex"];
+        MeshPipeline = [Device newRenderPipelineStateWithDescriptor:descriptor error:&error];
+        if (!MeshPipeline) throw std::runtime_error("Metal indexed mesh pipeline: " + std::string([[error localizedDescription] UTF8String]));
+        MTLDepthStencilDescriptor* depth = [MTLDepthStencilDescriptor new];
+        depth.depthCompareFunction = MTLCompareFunctionLess;
+        depth.depthWriteEnabled = YES;
+        MeshDepthState = [Device newDepthStencilStateWithDescriptor:depth];
+        depth.depthCompareFunction = MTLCompareFunctionAlways;
+        depth.depthWriteEnabled = NO;
+        OverlayDepthState = [Device newDepthStencilStateWithDescriptor:depth];
+        if (!MeshDepthState || !OverlayDepthState) throw std::runtime_error("Metal depth state allocation failed");
     }
 
     void MetalRenderer::State::Render(id<MTLTexture> target, id<CAMetalDrawable> drawable) {
@@ -45,9 +62,20 @@ namespace helengine::apple {
         pass.colorAttachments[0].loadAction = MTLLoadActionClear;
         pass.colorAttachments[0].storeAction = MTLStoreActionStore;
         pass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1);
+        const bool hasMesh = std::any_of(Draws.begin(),Draws.end(),[](const DrawPacket& draw) { return draw.Mesh != 0; });
+        if (hasMesh) {
+            MTLTextureDescriptor* depthDescriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatDepth32Float width:target.width height:target.height mipmapped:NO];
+            depthDescriptor.storageMode = MTLStorageModePrivate;
+            depthDescriptor.usage = MTLTextureUsageRenderTarget;
+            id<MTLTexture> depthTarget = [Device newTextureWithDescriptor:depthDescriptor];
+            if (!depthTarget) throw std::runtime_error("Metal depth attachment allocation failed");
+            pass.depthAttachment.texture = depthTarget;
+            pass.depthAttachment.loadAction = MTLLoadActionClear;
+            pass.depthAttachment.storeAction = MTLStoreActionDontCare;
+            pass.depthAttachment.clearDepth = 1.0;
+        }
         id<MTLRenderCommandEncoder> encoder = [command renderCommandEncoderWithDescriptor:pass];
         if (!encoder) throw std::runtime_error("Metal frame: render encoder allocation failed");
-        [encoder setRenderPipelineState:Pipeline];
         for (const DrawPacket& draw : Draws) {
             auto texture = Textures.find(draw.Texture);
             if (!draw.Rounded && texture == Textures.end()) {
@@ -58,13 +86,28 @@ namespace helengine::apple {
             if (clip.Width == 0 || clip.Height == 0 || clip.X >= target.width || clip.Y >= target.height) continue;
             const MTLScissorRect scissor = {clip.X, clip.Y, std::min<std::size_t>(clip.Width, target.width-clip.X), std::min<std::size_t>(clip.Height, target.height-clip.Y)};
             [encoder setScissorRect:scissor];
+            if (draw.Mesh != 0) {
+                auto mesh = Meshes.find(draw.Mesh);
+                if (mesh == Meshes.end()) {
+                    [encoder endEncoding];
+                    throw std::runtime_error("Metal frame: an indexed mesh was released before submission");
+                }
+                [encoder setRenderPipelineState:MeshPipeline];
+                [encoder setDepthStencilState:MeshDepthState];
+                [encoder setVertexBuffer:mesh->second.Vertices offset:0 atIndex:0];
+                [encoder setVertexBytes:&draw.MeshUniforms length:sizeof(draw.MeshUniforms) atIndex:1];
+                [encoder setFragmentTexture:texture->second atIndex:0];
+                [encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle indexCount:mesh->second.IndexCount indexType:MTLIndexTypeUInt32 indexBuffer:mesh->second.Indices indexBufferOffset:0];
+                continue;
+            }
             id<MTLBuffer> vertices = [Device newBufferWithBytes:draw.Vertices.data() length:draw.Vertices.size() * sizeof(Vertex) options:MTLResourceStorageModeShared];
             if (!vertices) {
                 [encoder endEncoding];
                 throw std::runtime_error("Metal frame: vertex buffer allocation failed");
             }
             [encoder setVertexBuffer:vertices offset:0 atIndex:0];
-            [encoder setRenderPipelineState:draw.Rounded ? RoundedPipeline : Pipeline];
+            [encoder setRenderPipelineState:draw.Rounded ? (hasMesh ? RoundedDepthPipeline : RoundedPipeline) : (hasMesh ? PrimitiveDepthPipeline : Pipeline)];
+            [encoder setDepthStencilState:OverlayDepthState];
             if (draw.Rounded) [encoder setFragmentBytes:&draw.Shape length:sizeof(draw.Shape) atIndex:0];
             else [encoder setFragmentTexture:texture->second atIndex:0];
             [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:draw.Vertices.size()];
@@ -121,6 +164,42 @@ namespace helengine::apple {
     }
 
     void MetalRenderer::SetClip(std::optional<ScissorRect> rectangle) { Resources->Clip = rectangle; }
+
+    std::uint64_t MetalRenderer::UploadMesh(std::span<const MeshVertex> vertices,std::span<const std::uint32_t> indices) {
+        if (vertices.empty() || indices.empty() || indices.size()%3 != 0 || indices.size()>std::numeric_limits<std::uint32_t>::max() || vertices.size()>std::numeric_limits<std::size_t>::max()/sizeof(MeshVertex)) throw std::invalid_argument("Metal mesh requires nonempty indexed triangles within buffer limits");
+        for (const auto index : indices) if (index>=vertices.size()) throw std::invalid_argument("Metal mesh index exceeds vertex count");
+        for (const auto& vertex : vertices) {
+            for (const float value : vertex.Position) if (!std::isfinite(value)) throw std::invalid_argument("Metal mesh position must be finite");
+            for (const float value : vertex.Normal) if (!std::isfinite(value)) throw std::invalid_argument("Metal mesh normal must be finite");
+            for (const float value : vertex.Uv) if (!std::isfinite(value)) throw std::invalid_argument("Metal mesh UV must be finite");
+        }
+        MeshResource mesh;
+        mesh.Vertices = [Resources->Device newBufferWithBytes:vertices.data() length:vertices.size_bytes() options:MTLResourceStorageModeShared];
+        mesh.Indices = [Resources->Device newBufferWithBytes:indices.data() length:indices.size_bytes() options:MTLResourceStorageModeShared];
+        mesh.IndexCount = static_cast<std::uint32_t>(indices.size());
+        if (!mesh.Vertices || !mesh.Indices) throw std::runtime_error("Metal indexed mesh buffer allocation failed");
+        const auto identity = Resources->NextMesh++;
+        Resources->Meshes.emplace(identity,mesh);
+        return identity;
+    }
+
+    void MetalRenderer::SubmitMesh(std::uint64_t mesh,std::uint64_t texture,const MeshDrawUniform& uniforms) {
+        if (!Resources->Meshes.contains(mesh)) throw std::invalid_argument("Metal indexed draw references an unknown mesh");
+        if (!Resources->Textures.contains(texture)) throw std::invalid_argument("Metal indexed draw requires an explicitly uploaded texture");
+        for (const auto value : uniforms.Transform) if (!std::isfinite(value)) throw std::invalid_argument("Metal mesh transform must be finite");
+        for (const auto value : uniforms.Color) if (!std::isfinite(value)) throw std::invalid_argument("Metal mesh material color must be finite");
+        DrawPacket packet;
+        packet.Texture = texture;
+        packet.Mesh = mesh;
+        packet.MeshUniforms = uniforms;
+        packet.Clip = Resources->Clip;
+        Resources->Draws.push_back(std::move(packet));
+    }
+
+    void MetalRenderer::ReleaseMesh(std::uint64_t mesh) {
+        if (std::any_of(Resources->Draws.begin(),Resources->Draws.end(),[mesh](const DrawPacket& draw) { return draw.Mesh == mesh; })) throw std::logic_error("Metal mesh release: resource is still queued for drawing");
+        if (Resources->Meshes.erase(mesh)!=1) throw std::invalid_argument("Metal mesh release: unknown resource identity");
+    }
 
     void MetalRenderer::SubmitRoundedRect(std::span<const Vertex> vertices, float width, float height, float radius, float border, std::array<float,4> borderColor, std::uint32_t corners) {
         if (vertices.empty() || vertices.size()%3 != 0 || !std::isfinite(width) || !std::isfinite(height) || !std::isfinite(radius) || !std::isfinite(border) || width <= 0 || height <= 0 || radius < 0 || border < 0 || corners > 15) throw std::invalid_argument("Metal rounded rectangle requires finite dimensions, nonnegative radii and a valid corner mask");

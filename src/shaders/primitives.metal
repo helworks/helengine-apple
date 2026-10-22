@@ -6,6 +6,17 @@ struct PrimitiveVertex { float2 position; float2 uv; float4 color; };
 /// Carries interpolated attributes from the primitive vertex stage.
 struct RasterVertex { float4 position [[position]]; float2 uv; float4 color; };
 
+/// Packed position/normal/UV struct with the same 32-byte stride as MeshVertex.
+struct MeshVertex { packed_float3 position; packed_float3 normal; float2 uv; };
+/// Row-major engine matrix bytes appear transposed in Metal column-major storage.
+struct MeshDrawUniform { float4x4 transform; float4 color; };
+
+/// Applies the fixed GPU payload and preserves engine row-vector transforms through the storage transpose.
+vertex RasterVertex mesh_vertex(uint id [[vertex_id]], constant MeshVertex* input [[buffer(0)]], constant MeshDrawUniform& uniforms [[buffer(1)]]) {
+    float lighting = max(dot(normalize(float3(input[id].normal)),float3(0,0,1)),0.2);
+    return {uniforms.transform * float4(float3(input[id].position),1),input[id].uv,float4(uniforms.color.rgb*lighting,uniforms.color.a)};
+}
+
 /// Projects fixed GPU payloads which have already passed the engine's configurable-precision boundary.
 vertex RasterVertex primitive_vertex(uint id [[vertex_id]], constant PrimitiveVertex* input [[buffer(0)]]) {
     return {float4(input[id].position, 0.0, 1.0), input[id].uv, input[id].color};

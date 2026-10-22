@@ -1,6 +1,8 @@
 #pragma once
 #include "apple/vertex.hpp"
 #include "apple/scissor_rect.hpp"
+#include "apple/mesh_vertex.hpp"
+#include "apple/mesh_draw_uniform.hpp"
 #include <array>
 #include <optional>
 #include <cstdint>
@@ -37,6 +39,12 @@ namespace helengine::apple {
         void Submit(std::span<const Vertex> vertices, std::uint64_t texture);
         /// Sets a per-draw physical pixel clip which is snapshotted when each primitive is queued.
         void SetClip(std::optional<ScissorRect> rectangle);
+        /// Uploads validated indexed position/normal/UV triangles and owns their buffers until explicit release.
+        std::uint64_t UploadMesh(std::span<const MeshVertex> vertices,std::span<const std::uint32_t> indices);
+        /// Queues an indexed depth-tested draw with a required texture and fixed row-vector matrix payload.
+        void SubmitMesh(std::uint64_t mesh,std::uint64_t texture,const MeshDrawUniform& uniforms);
+        /// Releases a known mesh after every queued draw using it has completed.
+        void ReleaseMesh(std::uint64_t mesh);
         /// Queues a signed-distance rounded rectangle including per-corner mask and authored border color.
         void SubmitRoundedRect(std::span<const Vertex> vertices, float width, float height, float radius, float border, std::array<float,4> borderColor, std::uint32_t corners);
         /// Completes queued GPU work into an RGBA8 CPU readback without creating any window or drawable.

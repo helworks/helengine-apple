@@ -2,6 +2,7 @@
 #include "apple/vertex.hpp"
 #include "apple/scissor_rect.hpp"
 #include "apple/rounded_rect_uniform.hpp"
+#include "apple/mesh_draw_uniform.hpp"
 #include <optional>
 #include <cstdint>
 #include <vector>
@@ -19,5 +20,9 @@ namespace helengine::apple {
         bool Rounded = false;
         /// Per-draw shape dimensions, border and enabled corners.
         RoundedRectUniform Shape;
+        /// Nonzero mesh identity selects indexed depth-tested drawing instead of transient 2D vertices.
+        std::uint64_t Mesh = 0;
+        /// Per-draw transform and tint for the native mesh validation material.
+        MeshDrawUniform MeshUniforms;
     };
 }
