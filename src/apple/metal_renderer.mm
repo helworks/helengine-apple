@@ -304,7 +304,10 @@ namespace helengine::apple {
         NSError* error = nil;
         MTLRenderPipelineReflection* reflection = nil;
         MaterialResource material;
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
         material.Pipeline = [Resources->Device newRenderPipelineStateWithDescriptor:descriptor options:(MTLPipelineOptionArgumentInfo|MTLPipelineOptionBufferTypeInfo) reflection:&reflection error:&error];
+#pragma clang diagnostic pop
         if (!material.Pipeline) throw std::runtime_error("Authored Metal pipeline: "+std::string(error ? [[error localizedDescription] UTF8String] : "SDK returned no diagnostic"));
         if (!reflection) throw std::runtime_error("Authored Metal pipeline did not provide native resource reflection");
 #pragma clang diagnostic push
