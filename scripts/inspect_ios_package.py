@@ -27,9 +27,15 @@ for path in sorted((package/'cooked').rglob('*')):
 valid = actual==arguments.sdk and bool(libraries) and all(entry['expectedSdkMarkers']>0 and entry['otherSdkMarkers']==0 for entry in libraries)
 receipt_path = output/'sdk-package-validation.json'
 receipt = json.loads(receipt_path.read_text()) if receipt_path.exists() else {'platform': 'ios', 'executed': False, 'sdkEvidence': {}}
+known_valid = receipt.setdefault('knownValidSdkEvidence', {})
+for sdk, evidence in receipt['sdkEvidence'].items():
+    if evidence.get('passed'):
+        known_valid[sdk] = evidence
 receipt['sdkEvidence'][arguments.sdk] = {'passed': valid, 'bundlePlatform': actual, 'packageRoot': str(package),
     'executableSha256': hashlib.sha256((bundle/'helengine_ios').read_bytes()).hexdigest(),
     'authoredShaderAssets': libraries, 'verification': 'Actual staged debug shader assets contain raw MTLB headers and the selected SDK debug provenance; opposite SDK provenance must be absent.'}
+if valid:
+    known_valid[arguments.sdk] = receipt['sdkEvidence'][arguments.sdk]
 receipt['currentPackagedSdk'] = actual
 receipt_path.write_text(json.dumps(receipt, indent=2)+'\n')
 print(json.dumps(receipt['sdkEvidence'][arguments.sdk], indent=2))
