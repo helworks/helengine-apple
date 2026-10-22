@@ -24,15 +24,17 @@ binary=output/'helengine_macos.app/Contents/MacOS/helengine_macos'
 results=[]
 with (output/'rendering-scenes.log').open('w') as log:
     for scene in scenes:
-        command=[str(binary),'--offscreen','--frames',str(arguments.frames),'--content',str(arguments.content_root.resolve()),'--scene',scene]
+        frame_count=max(1200,arguments.frames) if scene in cpu_scenes else arguments.frames
+        executable=output/'demo_disc_trace_tests' if scene in cpu_scenes else binary
+        command=[str(executable),'--offscreen','--frames',str(frame_count),'--content',str(arguments.content_root.resolve()),'--scene',scene]
         run=subprocess.run(command,capture_output=True,text=True,timeout=300)
         transcript=run.stdout+run.stderr
         log.write(scene+'\n'+transcript+'\n'); log.flush()
-        fields=dict(re.findall(r'\b(core_frames|draw_calls|mesh_visible_samples|rgba_bytes|checksum|nonuniform|center_nonuniform)=(\d+)',transcript))
+        fields=dict(re.findall(r'\b(core_frames|draw_calls|mesh_visible_samples|rgba_bytes|checksum|nonuniform|center_nonuniform|trace_spp|trace_rays|trace_nonfinite)=(\d+)',transcript))
         metrics={key:int(value) for key,value in fields.items()}
-        valid=run.returncode==0 and metrics.get('core_frames')==arguments.frames and metrics.get('draw_calls',0)>0 and metrics.get('nonuniform')==1
+        valid=run.returncode==0 and metrics.get('core_frames')==frame_count and metrics.get('draw_calls',0)>0 and metrics.get('nonuniform')==1
         if scene in cpu_scenes:
-            valid=valid and metrics.get('center_nonuniform')==1
+            valid=valid and metrics.get('center_nonuniform')==1 and metrics.get('trace_spp',0)>=1 and metrics.get('trace_nonfinite')==0
         else:
             valid=valid and metrics.get('mesh_visible_samples',0)>0
         results.append({'sceneId':scene,'passed':valid,'exitCode':run.returncode,'metrics':metrics,'output':transcript})
