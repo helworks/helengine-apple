@@ -15,12 +15,16 @@ namespace helengine::apple {
         id<MTLCommandQueue> Queue;
         /// Compiled blend-enabled textured primitive pipeline.
         id<MTLRenderPipelineState> Pipeline;
+        /// Compiled signed-distance pipeline for rounded shapes and borders.
+        id<MTLRenderPipelineState> RoundedPipeline;
         /// Uploaded resources retained until their explicit release.
         std::unordered_map<std::uint64_t, id<MTLTexture>> Textures;
         /// Draws waiting for the next explicit frame submission.
         std::vector<DrawPacket> Draws;
         /// Monotonic texture identity; zero is never a valid texture.
         std::uint64_t NextTexture = 1;
+        /// Current clip copied into every packet before encoding starts.
+        std::optional<ScissorRect> Clip;
         /// Initializes device, command queue and precompiled Metal shader library.
         State();
         /// Encodes ordered draws and waits for GPU completion before callers can recycle resources.
