@@ -1,10 +1,15 @@
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
 #include <iostream>
+#include "authored_material_validation.hpp"
 
 /// Loads an authored compiler-produced library into the real Metal device and checks its requested engine entry point.
 int main(int argc,char** argv) {
     @autoreleasepool {
+        if (argc == 2) {
+            try { AuthoredMaterialValidation::Run(argv[1]); std::cout << "Authored Metal material GPU pixels passed\n"; return 0; }
+            catch (const std::exception& error) { std::cerr << "Authored Metal material validation failed: " << error.what() << '\n'; return 1; }
+        }
         if (argc != 3) { std::cerr << "Usage: metal_authored_library_tests <metallib> <entry-point>\n"; return 2; }
         id<MTLDevice> device = MTLCreateSystemDefaultDevice();
         if (!device) { std::cerr << "No Metal device available\n"; return 1; }

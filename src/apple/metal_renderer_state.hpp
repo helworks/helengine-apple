@@ -2,6 +2,7 @@
 #include "apple/metal_renderer.hpp"
 #include "apple/draw_packet.hpp"
 #include "apple/mesh_resource.hpp"
+#include "apple/material_resource.hpp"
 #import <Metal/Metal.h>
 #import <QuartzCore/CAMetalLayer.h>
 #include <unordered_map>
@@ -28,20 +29,30 @@ namespace helengine::apple {
         id<MTLDepthStencilState> MeshDepthState;
         /// Disables depth testing and writes for ordered 2D overlays.
         id<MTLDepthStencilState> OverlayDepthState;
+        /// Shared standard linear clamp sampler for the engine's shader-backed material contract.
+        id<MTLSamplerState> MaterialSampler;
         /// Uploaded resources retained until their explicit release.
         std::unordered_map<std::uint64_t, id<MTLTexture>> Textures;
         /// Uploaded indexed meshes retained until safe explicit release.
         std::unordered_map<std::uint64_t,MeshResource> Meshes;
+        /// Actual authored pipelines retained under explicit renderer ownership.
+        std::unordered_map<std::uint64_t,MaterialResource> Materials;
         /// Draws waiting for the next explicit frame submission.
         std::vector<DrawPacket> Draws;
         /// Monotonic texture identity; zero is never a valid texture.
         std::uint64_t NextTexture = 1;
         /// Independent monotonic mesh identity namespace.
         std::uint64_t NextMesh = 1;
+        /// Independent monotonic identity namespace for authored material pipelines.
+        std::uint64_t NextMaterial = 1;
         /// Current clip copied into every packet before encoding starts.
         std::optional<ScissorRect> Clip;
         /// Initializes device, command queue and precompiled Metal shader library.
         State();
+        /// Loads exact cooked library bytes into the hardware device without retaining caller-owned memory.
+        id<MTLLibrary> LoadLibrary(std::span<const std::uint8_t> bytes);
+        /// Extracts Metal's native stage binding requirements for pre-submission material validation.
+        void ReflectArguments(MaterialResource& material,NSArray<MTLArgument*>* arguments,std::uint32_t stage);
         /// Encodes ordered draws and waits for GPU completion before callers can recycle resources.
         void Render(id<MTLTexture> target, id<CAMetalDrawable> drawable);
     };

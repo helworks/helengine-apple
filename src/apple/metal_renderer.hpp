@@ -3,6 +3,9 @@
 #include "apple/scissor_rect.hpp"
 #include "apple/mesh_vertex.hpp"
 #include "apple/mesh_draw_uniform.hpp"
+#include "apple/material_buffer.hpp"
+#include "apple/material_texture.hpp"
+#include <string_view>
 #include <array>
 #include <optional>
 #include <cstdint>
@@ -45,6 +48,12 @@ namespace helengine::apple {
         void SubmitMesh(std::uint64_t mesh,std::uint64_t texture,const MeshDrawUniform& uniforms);
         /// Releases a known mesh after every queued draw using it has completed.
         void ReleaseMesh(std::uint64_t mesh);
+        /// Builds a real authored pipeline from cooked Metal libraries and rejects unsupported vertex/resource contracts.
+        std::uint64_t UploadMaterial(std::span<const std::uint8_t> vertexLibrary,std::string_view vertexEntry,std::span<const std::uint8_t> fragmentLibrary,std::string_view fragmentEntry);
+        /// Queues an authored material only after validating all reflected constants and texture resources.
+        void SubmitMaterialMesh(std::uint64_t mesh,std::uint64_t material,std::span<const MaterialBuffer> buffers,std::span<const MaterialTexture> textures);
+        /// Releases a known authored pipeline after all of its queued draws have completed.
+        void ReleaseMaterial(std::uint64_t material);
         /// Queues a signed-distance rounded rectangle including per-corner mask and authored border color.
         void SubmitRoundedRect(std::span<const Vertex> vertices, float width, float height, float radius, float border, std::array<float,4> borderColor, std::uint32_t corners);
         /// Completes queued GPU work into an RGBA8 CPU readback without creating any window or drawable.

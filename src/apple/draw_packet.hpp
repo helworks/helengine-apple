@@ -3,6 +3,8 @@
 #include "apple/scissor_rect.hpp"
 #include "apple/rounded_rect_uniform.hpp"
 #include "apple/mesh_draw_uniform.hpp"
+#include "apple/material_buffer.hpp"
+#include "apple/material_texture.hpp"
 #include <optional>
 #include <cstdint>
 #include <vector>
@@ -24,5 +26,11 @@ namespace helengine::apple {
         std::uint64_t Mesh = 0;
         /// Per-draw transform and tint for the native mesh validation material.
         MeshDrawUniform MeshUniforms;
+        /// Nonzero identity selects an actual authored vertex/fragment pipeline instead of the native validation material.
+        std::uint64_t Material = 0;
+        /// Owned constant snapshots for the authored draw's reflected stages and indices.
+        std::vector<MaterialBuffer> MaterialBuffers;
+        /// Explicit required texture bindings retained until GPU completion.
+        std::vector<MaterialTexture> MaterialTextures;
     };
 }
