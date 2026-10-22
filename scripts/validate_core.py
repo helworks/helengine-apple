@@ -11,6 +11,7 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--core-root', required=True, type=pathlib.Path)
 parser.add_argument('--code-root', required=True, type=pathlib.Path)
 parser.add_argument('--content-root', required=True, type=pathlib.Path)
+parser.add_argument('--profile', choices=['Debug', 'Release', 'Profiler'], default='Debug')
 parser.add_argument('--demodisc', action='store_true', help='Verify all 44 authored menu items and actual SDL input replay over 300 frames')
 arguments = parser.parse_args()
 if platform.system() != 'Darwin':
@@ -22,7 +23,7 @@ output = pathlib.Path('/tmp/helengine/macos')
 output.mkdir(parents=True, exist_ok=True)
 cmake = pathlib.Path.home() / 'dev/helworks/tools/cmake-3.31.12-macos-universal/CMake.app/Contents/bin/cmake'
 commands = [
-    ('player-configure.log', [str(cmake), '-S', str(root), '-B', str(output), '-DHELENGINE_DIAGNOSTIC_ONLY=OFF', '-DHELENGINE_NATIVE_PROFILE=Debug', '-DCMAKE_BUILD_TYPE=Debug', '-DHELENGINE_CORE_CPP_ROOT='+str(arguments.core_root.resolve()), '-DHELENGINE_CODE_ROOT='+str(arguments.code_root.resolve()), '-DHELENGINE_CONTENT_ROOT='+str(arguments.content_root.resolve())]),
+    ('player-configure.log', [str(cmake), '-S', str(root), '-B', str(output), '-DHELENGINE_DIAGNOSTIC_ONLY=OFF', '-DHELENGINE_NATIVE_PROFILE='+arguments.profile, '-DCMAKE_BUILD_TYPE='+arguments.profile, '-DHELENGINE_CORE_CPP_ROOT='+str(arguments.core_root.resolve()), '-DHELENGINE_CODE_ROOT='+str(arguments.code_root.resolve()), '-DHELENGINE_CONTENT_ROOT='+str(arguments.content_root.resolve())]),
     ('player-build.log', [str(cmake), '--build', str(output), '--target', 'helengine_macos'] + (['demo_disc_menu_tests'] if arguments.demodisc else []) + ['-j', '6']),
 ]
 for log_name, command in commands:
@@ -45,7 +46,7 @@ invalid = subprocess.run([str(player), '--offscreen', '--frames', '1', '--conten
 if invalid.returncode != 1 or 'Requested scene is absent' not in invalid.stderr or 'shutdown also failed' in invalid.stderr:
     raise RuntimeError('Unknown packaged scene did not fail cleanly through actual Core startup/teardown')
 receipt = {
-    'platform': 'macos', 'architecture': 'arm64', 'profile': 'Debug',
+    'platform': 'macos', 'architecture': 'arm64', 'profile': arguments.profile,
     'sdkVersion': subprocess.check_output(['xcrun', '--sdk', 'macosx', '--show-sdk-version'], text=True).strip(),
     'appleCommit': subprocess.check_output(['git', '-C', str(root), 'rev-parse', 'HEAD'], text=True).strip(),
     'engineCommit': subprocess.check_output(['git', '-C', str(root.parent / 'helengine'), 'rev-parse', 'HEAD'], text=True).strip(),
