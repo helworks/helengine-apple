@@ -24,6 +24,11 @@ void SdlInputBackend::OpenGamepad(SDL_JoystickID id) {
     for (auto& slot : Gamepads) { if (!slot) { slot = SDL_OpenGamepad(id); if (!slot) { throw std::runtime_error(std::string("SDL_OpenGamepad: ") + SDL_GetError()); } return; } }
 }
 
+void SdlInputBackend::AttachReplayGamepad(SDL_JoystickID id) {
+    if (!SDL_IsJoystickVirtual(id) || !SDL_IsGamepad(id)) { throw std::invalid_argument("Offscreen replay accepts only an explicit SDL virtual gamepad."); }
+    OpenGamepad(id);
+}
+
 void SdlInputBackend::HandleEvent(const SDL_Event& event) {
     if (event.type == SDL_EVENT_KEY_DOWN || event.type == SDL_EVENT_KEY_UP) { if (event.key.scancode >= 0 && event.key.scancode < SDL_SCANCODE_COUNT) { Pressed[event.key.scancode] = event.type == SDL_EVENT_KEY_DOWN; } }
     else if (event.type == SDL_EVENT_WINDOW_FOCUS_LOST) { Pressed.fill(false); }
@@ -52,6 +57,7 @@ void SdlInputBackend::HandleEvent(const SDL_Event& event) {
 ::InputFrameState SdlInputBackend::CaptureFrame() {
     ++CapturedFrameCount;
     ::InputFrameState frame;
+    auto& gamepadFrames=UseSecondGamepadFrame?SecondGamepadFrame:FirstGamepadFrame; UseSecondGamepadFrame=!UseSecondGamepadFrame;
     const bool active = BackgroundInput || (!Offscreen && SDL_GetKeyboardFocus());
     List<::Keys> keys;
     if (active) { for (int index = 0; index < SDL_SCANCODE_COUNT; ++index) { if (Pressed[index]) { auto key = TranslateScancode(static_cast<SDL_Scancode>(index)); if (key != ::Keys::None) { keys.Add(key); } } } }
@@ -77,7 +83,7 @@ void SdlInputBackend::HandleEvent(const SDL_Event& event) {
     frame.Pointer.SetButtonDown(::InputPointerButton::Back,frame.Mouse.get_XButton1() == ::ButtonState::Pressed);
     frame.Pointer.SetButtonDown(::InputPointerButton::Forward,frame.Mouse.get_XButton2() == ::ButtonState::Pressed);
     for (size_t index=0;index<Gamepads.size();++index) {
-        auto& portable = GamepadFrames[static_cast<int32_t>(index)]; portable = ::InputGamepadState(); auto* gamepad = Gamepads[index]; if (!gamepad || !SDL_GamepadConnected(gamepad) || !active) { continue; }
+        auto& portable = gamepadFrames[static_cast<int32_t>(index)]; portable = ::InputGamepadState(); auto* gamepad = Gamepads[index]; if (!gamepad || !SDL_GamepadConnected(gamepad) || !active) { continue; }
         portable.Connected = true;
         portable.LeftStickX=SDL_GetGamepadAxis(gamepad,SDL_GAMEPAD_AXIS_LEFTX); portable.LeftStickY=static_cast<int16_t>(std::clamp(-static_cast<int>(SDL_GetGamepadAxis(gamepad,SDL_GAMEPAD_AXIS_LEFTY)),-32768,32767));
         portable.RightStickX=SDL_GetGamepadAxis(gamepad,SDL_GAMEPAD_AXIS_RIGHTX); portable.RightStickY=static_cast<int16_t>(std::clamp(-static_cast<int>(SDL_GetGamepadAxis(gamepad,SDL_GAMEPAD_AXIS_RIGHTY)),-32768,32767));
@@ -91,6 +97,6 @@ void SdlInputBackend::HandleEvent(const SDL_Event& event) {
         portable.SetButtonDown(::InputGamepadButton::LeftStick,SDL_GetGamepadButton(gamepad,SDL_GAMEPAD_BUTTON_LEFT_STICK)); portable.SetButtonDown(::InputGamepadButton::RightStick,SDL_GetGamepadButton(gamepad,SDL_GAMEPAD_BUTTON_RIGHT_STICK));
         portable.SetButtonDown(::InputGamepadButton::LeftTrigger,portable.LeftTrigger>16383); portable.SetButtonDown(::InputGamepadButton::RightTrigger,portable.RightTrigger>16383); portable.SetButtonDown(::InputGamepadButton::Home,SDL_GetGamepadButton(gamepad,SDL_GAMEPAD_BUTTON_GUIDE));
     }
-    frame.Gamepads=&GamepadFrames; frame.GamepadCount=static_cast<int32_t>(Gamepads.size()); return frame;
+    frame.Gamepads=&gamepadFrames; frame.GamepadCount=static_cast<int32_t>(Gamepads.size()); return frame;
 }
 }

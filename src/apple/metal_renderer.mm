@@ -67,6 +67,9 @@ namespace helengine::apple {
         sampler.tAddressMode = MTLSamplerAddressModeClampToEdge;
         MaterialSampler = [Device newSamplerStateWithDescriptor:sampler];
         if (!MaterialSampler) throw std::runtime_error("Metal standard material sampler allocation failed");
+        sampler.minFilter=MTLSamplerMinMagFilterNearest; sampler.magFilter=MTLSamplerMinMagFilterNearest;
+        ShadowSampler=[Device newSamplerStateWithDescriptor:sampler];
+        if (!ShadowSampler) throw std::runtime_error("Metal shadow sampler allocation failed");
     }
 
     id<MTLLibrary> MetalRenderer::State::LoadLibrary(std::span<const std::uint8_t> bytes) {
@@ -113,6 +116,13 @@ namespace helengine::apple {
         pass.colorAttachments[0].storeAction = MTLStoreActionStore;
         pass.colorAttachments[0].clearColor = MTLClearColorMake(ClearColor[0],ClearColor[1],ClearColor[2],ClearColor[3]);
         const bool hasMesh = std::any_of(Draws.begin(),Draws.end(),[](const DrawPacket& draw) { return draw.Mesh != 0; });
+        const auto meshCount=static_cast<size_t>(std::count_if(Draws.begin(),Draws.end(),[](const DrawPacket& draw) { return draw.Mesh!=0; }));
+        id<MTLBuffer> visibility=nil;
+        if (meshCount) {
+            visibility=[Device newBufferWithLength:meshCount*sizeof(uint64_t) options:MTLResourceStorageModeShared];
+            if (!visibility) throw std::runtime_error("Metal visibility query allocation failed");
+            std::memset(visibility.contents,0,meshCount*sizeof(uint64_t)); pass.visibilityResultBuffer=visibility;
+        }
         if (hasMesh) {
             MTLTextureDescriptor* depthDescriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatDepth32Float width:target.width height:target.height mipmapped:NO];
             depthDescriptor.storageMode = MTLStorageModePrivate;
@@ -126,6 +136,7 @@ namespace helengine::apple {
         }
         id<MTLRenderCommandEncoder> encoder = [command renderCommandEncoderWithDescriptor:pass];
         if (!encoder) throw std::runtime_error("Metal frame: render encoder allocation failed");
+        size_t meshQuery=0;
         for (const DrawPacket& draw : Draws) {
             auto texture = Textures.find(draw.Texture);
             if (!draw.Rounded && draw.Material == 0 && texture == Textures.end()) {
@@ -140,6 +151,7 @@ namespace helengine::apple {
             const auto viewport=draw.Mesh!=0 ? draw.MeshViewport : std::nullopt;
             [encoder setViewport:MTLViewport{viewport ? static_cast<double>(viewport->X) : 0.0,viewport ? static_cast<double>(viewport->Y) : 0.0,viewport ? static_cast<double>(viewport->Width) : static_cast<double>(target.width),viewport ? static_cast<double>(viewport->Height) : static_cast<double>(target.height),0.0,1.0}];
             if (draw.Mesh != 0) {
+                [encoder setVisibilityResultMode:MTLVisibilityResultModeCounting offset:meshQuery++*sizeof(uint64_t)];
                 auto mesh = Meshes.find(draw.Mesh);
                 if (mesh == Meshes.end()) {
                     [encoder endEncoding];
@@ -170,8 +182,10 @@ namespace helengine::apple {
                     }
                     for (const auto& requirement : material->second.Required) {
                         if (requirement.Kind != 2) continue;
-                        if (requirement.Stage&1) [encoder setVertexSamplerState:MaterialSampler atIndex:requirement.Slot];
-                        if (requirement.Stage&2) [encoder setFragmentSamplerState:MaterialSampler atIndex:requirement.Slot];
+                        const bool shadow=std::any_of(draw.MaterialTextures.begin(),draw.MaterialTextures.end(),[&](const MaterialTexture& binding) { return binding.Slot==requirement.Slot && (binding.Stages&requirement.Stage) && Textures.at(binding.Texture).pixelFormat==MTLPixelFormatR32Float; });
+                        id<MTLSamplerState> sampler=shadow ? ShadowSampler : MaterialSampler;
+                        if (requirement.Stage&1) [encoder setVertexSamplerState:sampler atIndex:requirement.Slot];
+                        if (requirement.Stage&2) [encoder setFragmentSamplerState:sampler atIndex:requirement.Slot];
                     }
                     [encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle indexCount:mesh->second.IndexCount indexType:MTLIndexTypeUInt32 indexBuffer:mesh->second.Indices indexBufferOffset:0];
                     continue;
@@ -184,6 +198,7 @@ namespace helengine::apple {
                 [encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle indexCount:mesh->second.IndexCount indexType:MTLIndexTypeUInt32 indexBuffer:mesh->second.Indices indexBufferOffset:0];
                 continue;
             }
+            [encoder setVisibilityResultMode:MTLVisibilityResultModeDisabled offset:0];
             id<MTLBuffer> vertices = [Device newBufferWithBytes:draw.Vertices.data() length:draw.Vertices.size() * sizeof(Vertex) options:MTLResourceStorageModeShared];
             if (!vertices) {
                 [encoder endEncoding];
@@ -201,6 +216,8 @@ namespace helengine::apple {
         [command commit];
         [command waitUntilCompleted];
         if (command.status == MTLCommandBufferStatusError) throw std::runtime_error("Metal GPU submission: " + std::string([[command.error localizedDescription] UTF8String]));
+        LastVisibleMeshSamples=0;
+        if (visibility) { const auto* samples=static_cast<const uint64_t*>(visibility.contents); for (size_t index=0;index<meshCount;++index) LastVisibleMeshSamples+=samples[index]; }
         Draws.clear();
     }
 
@@ -436,6 +453,7 @@ namespace helengine::apple {
     void MetalRenderer::DiscardFrame() { Resources->Draws.clear(); }
     bool MetalRenderer::HasPendingDraws() const { return !Resources->Draws.empty(); }
     std::size_t MetalRenderer::GetQueuedDrawCount() const { return Resources->Draws.size(); }
+    uint64_t MetalRenderer::GetLastVisibleMeshSamples() const { return Resources->LastVisibleMeshSamples; }
     void MetalRenderer::SetMeshViewport(std::optional<ScissorRect> viewport) { Resources->MeshViewport=viewport; }
     bool MetalRenderer::IsMaterialBindingActive(std::uint64_t identity,std::uint32_t kind,std::uint32_t slot,std::uint32_t stage) const {
         const auto found=Resources->Materials.find(identity);

@@ -5,7 +5,6 @@ import json
 import os
 import pathlib
 import platform
-import shutil
 import subprocess
 import sys
 
@@ -37,12 +36,13 @@ if sdk_version != '26.2':
 output = pathlib.Path('/tmp/helengine') / arguments.target
 previous = output / 'native-build-settings.json'
 settings = {'sdk': sdk, 'profile': arguments.profile, 'architecture': 'arm64'}
-if previous.is_file() and json.loads(previous.read_text()).get('sdk') != sdk:
-    if output.resolve() not in [pathlib.Path('/private/tmp/helengine/ios'), pathlib.Path('/tmp/helengine/ios')]:
-        raise RuntimeError('Refusing to clean unexpected output path')
-    shutil.rmtree(output)
+sdk_changed = previous.is_file() and json.loads(previous.read_text()).get('sdk') != sdk
 output.mkdir(parents=True, exist_ok=True)
 configure = [str(cmake), '-S', str(root), '-B', str(output), '-DHELENGINE_DIAGNOSTIC_ONLY=ON', '-DHELENGINE_NATIVE_PROFILE=' + arguments.profile, '-DCMAKE_OSX_ARCHITECTURES=arm64', '-DCMAKE_BUILD_TYPE=' + arguments.profile]
+if sdk_changed:
+    # CMake owns only its cache/metadata refresh. Canonical project cache, package,
+    # generated sources and managed compiler output must survive SDK selection.
+    configure.append('--fresh')
 if arguments.target == 'ios':
     configure += ['-G', 'Xcode', '-DCMAKE_SYSTEM_NAME=iOS', '-DCMAKE_OSX_SYSROOT=' + sdk, '-DCMAKE_OSX_DEPLOYMENT_TARGET=15.0', '-DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO']
 else:

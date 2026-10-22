@@ -20,15 +20,17 @@ public:
     void set_ReceiveInputInBackground(bool value) override { BackgroundInput = value; }
     /// <summary>Accumulates keyboard, wheel, focus and controller lifecycle events exactly once in the host event loop.</summary>
     void HandleEvent(const SDL_Event& event);
+    /// <summary>Opens only an explicitly supplied SDL virtual controller for isolated replay; offscreen execution never enumerates physical controllers.</summary>
+    void AttachReplayGamepad(SDL_JoystickID id);
     /// <summary>Captures one frame in physical drawable coordinates while preserving portable key and gamepad IDs.</summary>
     ::InputFrameState CaptureFrame() override;
     /// <summary>Maps SDL physical scancodes to engine desktop keys without relying on Win32 virtual-key APIs.</summary>
     static ::Keys TranslateScancode(SDL_Scancode scancode);
-    /// Reports actual captures for deterministic replay assertions without polling another provider.
+    /// Counts actual generated input captures for isolated replay validation.
     uint64_t GetCapturedFrameCount() const { return CapturedFrameCount; }
 private:
-    /// Counts captures made by the actual generated input system.
-    uint64_t CapturedFrameCount = 0;
+    /// Retains the monotonically increasing native capture count.
+    uint64_t CapturedFrameCount=0;
     /// <summary>Opens a new attached gamepad into the first available stable slot.</summary>
     void OpenGamepad(SDL_JoystickID id);
     /// <summary>Borrows no desktop input APIs during explicit offscreen execution.</summary>
@@ -49,7 +51,11 @@ private:
     bool HasPreviousPointer = false;
     /// <summary>Stores native controller ownership in stable portable slots.</summary>
     std::array<SDL_Gamepad*,4> Gamepads {};
-    /// <summary>Owns captured portable controller values for the duration of the host frame.</summary>
-    Array<::InputGamepadState> GamepadFrames {4};
+    /// <summary>Owns one alternating portable snapshot so the generated InputSystem's previous frame remains immutable during the next capture.</summary>
+    Array<::InputGamepadState> FirstGamepadFrame {4};
+    /// <summary>Owns the second portable snapshot; the generated input contract retains only current and previous frame references.</summary>
+    Array<::InputGamepadState> SecondGamepadFrame {4};
+    /// <summary>Selects the next reusable snapshot only after the previously returned buffer has become the older-than-previous frame.</summary>
+    bool UseSecondGamepadFrame=false;
 };
 }

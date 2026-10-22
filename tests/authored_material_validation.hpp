@@ -44,6 +44,12 @@ public:
         const auto pixels = renderer.RenderOffscreen(64,64);
         const std::size_t center = (32*64+32)*4;
         if (pixels[center] != 16 || pixels[center+1] != 128 || pixels[center+2] != 56 || pixels[center+3] != 255) throw std::runtime_error("Actual authored Metal material sampled/tinted pixels incorrectly");
+        auto translated=matrix; translated[0]=translated[5]=0.25f; translated[3]=0.5f;
+        std::memcpy(buffers[0].Bytes.data(),translated.data(),64);
+        renderer.SubmitMaterialMesh(mesh,material,buffers,bindings);
+        const auto moved=renderer.RenderOffscreen(64,64);
+        if (moved[(32*64+48)*4]!=16 || moved[(32*64+16)*4]!=0) throw std::runtime_error("Authored default-column-major row-vector transform packing is incorrect");
+        std::memcpy(buffers[0].Bytes.data(),matrix.data(),64);
         renderer.ReleaseMaterial(material);
         std::cout << "Authored single-texture material pixels verified\n" << std::flush;
         const auto cubeFragment=Read(root+"/fragment-cube.metallib");

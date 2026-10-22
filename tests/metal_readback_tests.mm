@@ -37,6 +37,7 @@ int main() {
         renderer.SubmitMesh(mesh,materialTexture,near);
         renderer.SubmitMesh(mesh,materialTexture,far);
         auto depth = renderer.RenderOffscreen(64,64);
+        if (!renderer.GetLastVisibleMeshSamples()) throw std::runtime_error("Metal hardware visibility did not count real indexed geometry samples");
         if (depth[(32*64+32)*4+2] != 255 || depth[(32*64+32)*4] != 0 || depth[0] != 255) throw std::runtime_error("Indexed Metal mesh depth ordering failed");
         auto translated = near;
         translated.Transform[0]=translated.Transform[5]=0.25f;

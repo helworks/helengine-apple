@@ -84,5 +84,7 @@ namespace helengine::apple {
         void SetMeshViewport(std::optional<ScissorRect> viewport);
         /// Exposes exact active native reflection to skip cooked bindings eliminated by shader optimization.
         bool IsMaterialBindingActive(std::uint64_t material,std::uint32_t kind,std::uint32_t slot,std::uint32_t stage) const;
+        /// Reports real hardware visibility samples from indexed geometry, excluding every 2D overlay draw.
+        uint64_t GetLastVisibleMeshSamples() const;
     };
 }

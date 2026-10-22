@@ -33,6 +33,8 @@ namespace helengine::apple {
         id<MTLDepthStencilState> OverlayDepthState;
         /// Shared standard linear clamp sampler for the engine's shader-backed material contract.
         id<MTLSamplerState> MaterialSampler;
+        /// Point sampling for actual float shadow targets, independent of diffuse texture filtering.
+        id<MTLSamplerState> ShadowSampler;
         /// Uploaded resources retained until their explicit release.
         std::unordered_map<std::uint64_t, id<MTLTexture>> Textures;
         /// Uploaded indexed meshes retained until safe explicit release.
@@ -53,6 +55,8 @@ namespace helengine::apple {
         std::optional<ScissorRect> MeshViewport;
         /// Camera-selected clear color, retained until the next explicit selection.
         std::array<float,4> ClearColor {0,0,0,1};
+        /// Actual depth-tested indexed samples counted by Metal in the last completed main pass.
+        uint64_t LastVisibleMeshSamples = 0;
         /// Initializes device, command queue and precompiled Metal shader library.
         State();
         /// Loads exact cooked library bytes into the hardware device without retaining caller-owned memory.

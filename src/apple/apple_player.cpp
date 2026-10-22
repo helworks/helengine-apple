@@ -128,7 +128,7 @@ int ApplePlayer::Run(const AppleRunOptions& options,CorePlayerObserver* observer
         for (uint8_t byte : pixels) checksum=(checksum^byte)*1099511628211ULL;
         bool nonuniform=false;
         for (size_t index=4;index+3<pixels.size();index+=4) if (pixels[index]!=pixels[0] || pixels[index+1]!=pixels[1] || pixels[index+2]!=pixels[2] || pixels[index+3]!=pixels[3]) { nonuniform=true; break; }
-        std::cout << "core_frames=" << frames << " draw_calls=" << render3d.get_LastDrawCallCount() << " rgba_bytes=" << pixels.size() << " checksum=" << checksum << " nonuniform=" << nonuniform << '\n';
+        std::cout << "core_frames=" << frames << " draw_calls=" << render3d.get_LastDrawCallCount() << " mesh_visible_samples=" << renderer.GetLastVisibleMeshSamples() << " rgba_bytes=" << pixels.size() << " checksum=" << checksum << " nonuniform=" << nonuniform << '\n';
         if (options.Offscreen && (!frames || render3d.get_LastDrawCallCount()<=0 || !nonuniform)) throw std::runtime_error("Generated-core offscreen run produced no drawable content; menu validation failed");
         if (observer) observer->ValidateComplete(core);
         coreNeedsShutdown=false; core.Dispose();
