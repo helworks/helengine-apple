@@ -46,12 +46,7 @@ public sealed class MetalShaderBackend : ShaderBackendBase, IShaderBackendCacheP
             using (JsonDocument reflected = JsonDocument.Parse(File.ReadAllText(reflection))) {
                 if (!reflected.RootElement.TryGetProperty("entryPoints", out JsonElement entryPoints) || entryPoints.GetArrayLength() == 0) { throw new InvalidOperationException("Metal intermediate reflection did not report a shader entry point."); }
             }
-            string sdk = PlatformTarget == "macos" ? "macosx" : "iphoneos";
-            string selectedSdk = Environment.GetEnvironmentVariable("HELENGINE_APPLE_SDK");
-            if (!string.IsNullOrWhiteSpace(selectedSdk)) {
-                if (PlatformTarget != "ios" || (selectedSdk != "iphoneos" && selectedSdk != "iphonesimulator")) { throw new InvalidOperationException("HELENGINE_APPLE_SDK may select iphoneos or iphonesimulator only for iOS builds."); }
-                sdk = selectedSdk;
-            }
+            string sdk = AppleSdkSelection.Resolve(PlatformTarget, Environment.GetEnvironmentVariable("HELENGINE_APPLE_SDK"));
             string sdkVersion = Run("/usr/bin/xcrun", ["--sdk", sdk, "--show-sdk-version"], root).Trim();
             if (sdkVersion != "26.2") { throw new InvalidOperationException("Selected Apple shader SDK differs from the validated toolchain lock: " + sdkVersion); }
             List<string> compile = ["--sdk", sdk, "metal", PlatformTarget == "macos" ? "-std=macos-metal2.3" : "-std=ios-metal2.3", request.Options.Optimize ? "-O3" : "-O0", "-c", metal, "-o", air];
