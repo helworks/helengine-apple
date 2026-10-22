@@ -47,7 +47,7 @@ public sealed class MetalShaderBackend : ShaderBackendBase {
                 if (PlatformTarget != "ios" || (selectedSdk != "iphoneos" && selectedSdk != "iphonesimulator")) { throw new InvalidOperationException("HELENGINE_APPLE_SDK may select iphoneos or iphonesimulator only for iOS builds."); }
                 sdk = selectedSdk;
             }
-            List<string> compile = ["--sdk", sdk, "metal", "-std=metal2.3", request.Options.Optimize ? "-O3" : "-O0", "-c", metal, "-o", air];
+            List<string> compile = ["--sdk", sdk, "metal", PlatformTarget == "macos" ? "-std=macos-metal2.3" : "-std=ios-metal2.3", request.Options.Optimize ? "-O3" : "-O0", "-c", metal, "-o", air];
             if (request.Options.GenerateDebugInfo) { compile.Add("-gline-tables-only"); }
             if (request.Options.TreatWarningsAsErrors) { compile.Add("-Werror"); }
             Run("/usr/bin/xcrun", compile, root);
