@@ -56,7 +56,7 @@ public:
         const std::array<MaterialTexture,1> cubeBindings={MaterialTexture{0,2,cubeTexture}};
         renderer.SubmitMaterialMesh(mesh,cubeMaterial,buffers,cubeBindings);
         const auto cubePixels=renderer.RenderOffscreen(64,64);
-        if (cubePixels[center]!=16 || cubePixels[center+1]!=128 || cubePixels[center+2]!=56 || cubePixels[center+3]!=255) throw std::runtime_error("Actual authored cube sampling selected the wrong face or data");
+        if (cubePixels[center]!=16 || cubePixels[center+1]!=128 || cubePixels[center+2]!=56 || cubePixels[center+3]!=255) throw std::runtime_error("Actual authored cube sampling selected unexpected RGBA="+std::to_string(cubePixels[center])+","+std::to_string(cubePixels[center+1])+","+std::to_string(cubePixels[center+2])+","+std::to_string(cubePixels[center+3]));
         renderer.ReleaseMaterial(cubeMaterial); renderer.ReleaseTexture(cubeTexture);
         std::cout << "Authored cube +Z face pixels and dimension rejection verified\n" << std::flush;
         renderer.ReleaseMesh(mesh);
