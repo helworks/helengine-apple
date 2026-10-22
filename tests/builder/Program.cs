@@ -39,16 +39,17 @@ public static class Program {
             builder.RegisterShaderBackends(registry);
             if (!registry.ContainsTarget(ShaderCompileTarget.Metal)) { throw new Exception("Apple shader contributor did not register Metal"); }
         }
-        if (arguments.Contains("--shader")) { ValidateNativeShader(); }
+        if (arguments.Contains("--shader")) { ValidateNativeShader("macos"); }
+        if (arguments.Contains("--shader-ios")) { ValidateNativeShader("ios"); }
         Console.WriteLine("Apple builder metadata: 2 targets, 3 exact profiles, Metal, numeric policy and required inputs passed");
         return 0;
     }
 
     /// <summary>Compiles actual HLSL through the pinned native tools and verifies a Metal library, reflection slots and failure propagation.</summary>
-    static void ValidateNativeShader() {
+    static void ValidateNativeShader(string target) {
         const string source = "cbuffer BaseColorBuffer : register(b0) { float4 BaseColor; }; float4 VSMain(float4 p : POSITION) : SV_Position { return p + BaseColor; }";
         ShaderCompileRequest request = new(new ShaderSourceInfo("material.hlsl", source), "VSMain", "VSMain", ShaderStage.Vertex, ShaderCompileTarget.Metal, new ShaderModel(5,0), "default", [], new ShaderCompileOptions(new ShaderBindingPolicy(0,0,16,32,48), true, false, true));
-        MetalShaderBackend backend = new("macos");
+        MetalShaderBackend backend = new(target);
         if (backend.UseSharedCache) { throw new Exception("Metal libraries from different Apple SDKs must not share the engine's target-only compile cache"); }
         var result = backend.Compile(request, new ShaderFilesystemIncludeResolver(Directory.GetCurrentDirectory()));
         if (!result.Success || result.Binary.Target != ShaderCompileTarget.Metal || System.Text.Encoding.ASCII.GetString(result.Binary.Bytecode, 0, 4) != "MTLB") { throw new Exception("Authored shader did not produce a real Metal library"); }
@@ -57,6 +58,6 @@ public static class Program {
         try { backend.Compile(invalid, new ShaderFilesystemIncludeResolver(Directory.GetCurrentDirectory())); }
         catch (InvalidOperationException) { rejected = true; }
         if (!rejected) { throw new Exception("Invalid authored shader did not fail native compilation"); }
-        Console.WriteLine("Authored HLSL -> SPIR-V -> MSL -> Metal library passed");
+        Console.WriteLine(target + ": authored HLSL -> SPIR-V -> MSL -> Metal library passed");
     }
 }

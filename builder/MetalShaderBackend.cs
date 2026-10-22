@@ -50,6 +50,8 @@ public sealed class MetalShaderBackend : ShaderBackendBase, IShaderBackendCacheP
                 if (PlatformTarget != "ios" || (selectedSdk != "iphoneos" && selectedSdk != "iphonesimulator")) { throw new InvalidOperationException("HELENGINE_APPLE_SDK may select iphoneos or iphonesimulator only for iOS builds."); }
                 sdk = selectedSdk;
             }
+            string sdkVersion = Run("/usr/bin/xcrun", ["--sdk", sdk, "--show-sdk-version"], root).Trim();
+            if (sdkVersion != "26.2") { throw new InvalidOperationException("Selected Apple shader SDK differs from the validated toolchain lock: " + sdkVersion); }
             List<string> compile = ["--sdk", sdk, "metal", PlatformTarget == "macos" ? "-std=macos-metal2.3" : "-std=ios-metal2.3", request.Options.Optimize ? "-O3" : "-O0", "-c", metal, "-o", air];
             if (request.Options.GenerateDebugInfo) { compile.Add("-gline-tables-only"); }
             if (request.Options.TreatWarningsAsErrors) { compile.Add("-Werror"); }
@@ -63,7 +65,7 @@ public sealed class MetalShaderBackend : ShaderBackendBase, IShaderBackendCacheP
     }
 
     /// <summary>Runs a native shader tool with structured arguments and captures both streams without hiding compiler errors.</summary>
-    static void Run(string executable, IReadOnlyList<string> arguments, string root) {
+    static string Run(string executable, IReadOnlyList<string> arguments, string root) {
         ProcessStartInfo start = new(executable) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, WorkingDirectory = root };
         foreach (string argument in arguments) { start.ArgumentList.Add(argument); }
         using Process process = Process.Start(start) ?? throw new InvalidOperationException("Could not start shader tool: " + executable);
@@ -73,5 +75,6 @@ public sealed class MetalShaderBackend : ShaderBackendBase, IShaderBackendCacheP
         string log = stdout.GetAwaiter().GetResult() + stderr.GetAwaiter().GetResult();
         File.WriteAllText(Path.Combine(root, "compiler.log"), log);
         if (process.ExitCode != 0) { throw new InvalidOperationException($"Metal shader tool failed ({process.ExitCode}): {executable}\n{log}"); }
+        return stdout.GetAwaiter().GetResult();
     }
 }

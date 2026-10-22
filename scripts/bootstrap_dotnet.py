@@ -17,7 +17,8 @@ if len(files) != 1:
 archive = setup / 'dotnet-sdk.tar.gz'
 urllib.request.urlretrieve(files[0]['url'], archive)
 digest = hashlib.sha512(archive.read_bytes()).hexdigest()
-if digest.lower() != files[0]['hash'].lower():
+locked_digest = '8d4b21ffa8047ebc4459b22a6090e4221fc8b3cab45ab638dcc61f1a5eb3bf2dff9f34db305b40c795ae2baf1732ba15f91ce5dfbd718a9f445561594d9c219e'
+if digest.lower() != files[0]['hash'].lower() or digest.lower() != locked_digest:
     raise RuntimeError('Official .NET archive SHA-512 mismatch')
 destination = root / '.dotnet'
 destination.mkdir(exist_ok=True)
@@ -25,6 +26,8 @@ with tarfile.open(archive, 'r:gz') as package:
     for member in package.getmembers():
         if not (destination / member.name).resolve().is_relative_to(destination.resolve()):
             raise RuntimeError('SDK archive path escapes installation directory')
+        if member.issym() and not (destination / member.name).parent.joinpath(member.linkname).resolve().is_relative_to(destination.resolve()):
+            raise RuntimeError('SDK archive symbolic link escapes installation directory')
     package.extractall(destination)
 launcher = root / '.local/bin/dotnet'
 launcher.parent.mkdir(parents=True, exist_ok=True)
