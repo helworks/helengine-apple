@@ -14,6 +14,10 @@ public static class Program {
             if (builder.Descriptor.TargetPlatformId != builder.Definition.PlatformId) { throw new Exception("Target identity mismatch"); }
             if (!builder.Definition.BuildProfiles.Select(profile => profile.ProfileId).SequenceEqual(["debug", "release", "profiler"])) { throw new Exception("Public profile contract changed"); }
             foreach (var profile in builder.Definition.BuildProfiles) {
+                var declaredSettings = builder.Definition.CodegenProfiles.Single(codegen => codegen.ProfileId == profile.CodegenProfileId).Settings.Select(setting => setting.SettingId).ToHashSet(StringComparer.Ordinal);
+                foreach (string settingId in profile.CodegenSettingDefaultValues.Keys) {
+                    if (!declaredSettings.Contains(settingId)) { throw new Exception("Build profile default is not declared in its codegen settings: " + settingId); }
+                }
                 string expected = profile.ProfileId == "profiler" ? "true" : "false";
                 if (profile.CodegenSettingDefaultValues["codegen-generated-function-profiling"] != expected) { throw new Exception("Build profile generated-scope default does not match its explicit native profile"); }
             }
