@@ -52,7 +52,7 @@ public static class AppleCookContextTests {
                 PlatformCookContext context = AppleCookContext.Capture("ios");
                 Environment.SetEnvironmentVariable("HELENGINE_APPLE_SDK", sdk == "iphoneos" ? "iphonesimulator" : "iphoneos");
                 MetalShaderBackend backend = new("ios", context);
-                ShaderCompileRequest request = new(new ShaderSourceInfo("captured-sdk.hlsl", "float4 PSMain() : SV_Target { return float4(1,0,0,1); }"), "PSMain", "PSMain", ShaderStage.Pixel, ShaderCompileTarget.Metal, new ShaderModel(5,0), "default", [], new ShaderCompileOptions(new ShaderBindingPolicy(0,0,100,200,300), false, true, true));
+                ShaderCompileRequest request = new(new ShaderSourceInfo("captured-sdk.hlsl", "float4 PSMain() : SV_Target { return float4(1,0,0,1); }"), "PSMain", "PSMain", ShaderStage.Pixel, ShaderCompileTarget.Metal, new ShaderModel(5,0), "default", [], new ShaderCompileOptions(new ShaderBindingPolicy(0,0,100,200,300), true, false, true));
                 var result = backend.Compile(request, new ShaderFilesystemIncludeResolver(Directory.GetCurrentDirectory()));
                 if (!result.Success) { throw new Exception("Actual captured-SDK shader compilation failed."); }
                 string binary = System.Text.Encoding.ASCII.GetString(result.Binary.Bytecode);
