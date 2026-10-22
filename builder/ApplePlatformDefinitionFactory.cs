@@ -11,9 +11,12 @@ public static class ApplePlatformDefinitionFactory {
         return new PlatformDefinition(
             target, target == "macos" ? "macOS Metal" : "iOS Metal",
             [
-                new("debug", "Debug", "Native symbols and diagnostics", "metal", "default", []),
-                new("release", "Release", "Optimized native runtime", "metal", "default", []),
-                new("profiler", "Profiler", "Requires generated scopes and a verified Tracy capture; currently rejected", "metal", "default", [])
+                new("debug", "Debug", "Native symbols and diagnostics", "metal", "default", [], new Dictionary<string,string>(StringComparer.Ordinal) { ["codegen-generated-function-profiling"] = "false" }),
+                new("release", "Release", "Optimized native runtime", "metal", "default", [], new Dictionary<string,string>(StringComparer.Ordinal) { ["codegen-generated-function-profiling"] = "false" }),
+                new("profiler", "Profiler", "Generated scopes and native Tracy CPU samples; macOS capture validation required", "metal", "default", [], new Dictionary<string,string>(StringComparer.Ordinal) {
+                    ["codegen-generated-function-profiling"] = "true",
+                    ["codegen-generated-function-profiling-maintained-symbol-prefixes"] = "Core,SceneManager,RenderCommandListBuilder2D"
+                })
             ],
             [new("metal", "Metal", "Shared native Apple renderer", [
                 new("default-width","Default Window Width",PlatformSettingKind.Text,"1280",true,[]),
