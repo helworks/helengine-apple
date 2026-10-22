@@ -70,10 +70,11 @@ if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
 else()
     set(HELENGINE_METAL_SDK macosx)
 endif()
+file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/metal-sdk-contract.txt" CONTENT "${HELENGINE_METAL_SDK}\n")
 add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/helengine.metallib"
     COMMAND "${XCRUN}" --sdk "${HELENGINE_METAL_SDK}" metal -c "${CMAKE_CURRENT_SOURCE_DIR}/src/shaders/primitives.metal" -o "${CMAKE_CURRENT_BINARY_DIR}/primitives.air"
     COMMAND "${XCRUN}" --sdk "${HELENGINE_METAL_SDK}" metallib "${CMAKE_CURRENT_BINARY_DIR}/primitives.air" -o "${CMAKE_CURRENT_BINARY_DIR}/helengine.metallib"
-    DEPENDS src/shaders/primitives.metal VERBATIM)
+    DEPENDS src/shaders/primitives.metal "${CMAKE_CURRENT_BINARY_DIR}/metal-sdk-contract.txt" VERBATIM)
 add_custom_target(helengine_metal_library ALL DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/helengine.metallib")
 add_library(helengine_metal STATIC src/apple/metal_renderer.mm src/apple/metal_shadow_renderer.mm)
 target_include_directories(helengine_metal PUBLIC src)
