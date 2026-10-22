@@ -15,7 +15,10 @@ public static class ApplePlatformDefinitionFactory {
                 new("release", "Release", "Optimized native runtime", "metal", "default", []),
                 new("profiler", "Profiler", "Requires generated scopes and a verified Tracy capture; currently rejected", "metal", "default", [])
             ],
-            [new("metal", "Metal", "Shared native Apple renderer", [])],
+            [new("metal", "Metal", "Shared native Apple renderer", [
+                new("default-width","Default Window Width",PlatformSettingKind.Text,"1280",true,[]),
+                new("default-height","Default Window Height",PlatformSettingKind.Text,"720",true,[])
+            ])],
             [], [AppleMaterialSchema.Create()], [],
             [new("default", "Native C++20", "Little-endian ARM64 Clang with the engine row-vector convention", PlatformCodegenLanguage.Cpp, PlatformSerializationEndianness.LittleEndian,
                 [
