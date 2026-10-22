@@ -36,6 +36,7 @@ namespace helengine::apple {
                     if (!type.array_size_literal[index] || type.array[index] == 0 || count>std::numeric_limits<std::uint32_t>::max()/type.array[index]) throw std::runtime_error("Metal resource arrays require a finite reflected constant size");
                     count *= type.array[index];
                 }
+                if (count != 1) throw std::runtime_error("Authored Metal resource arrays are not supported by the validated native pipeline; explicit individual bindings are required");
                 const auto limit = kind == 2 ? 16u : (kind == 1 ? 128u : 30u);
                 if (native >= limit || count>limit-native) throw std::runtime_error("Authored shader resource exceeds Metal native per-kind binding limits");
                 spirv_cross::MSLResourceBinding binding;

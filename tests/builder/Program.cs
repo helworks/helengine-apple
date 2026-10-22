@@ -66,8 +66,11 @@ public static class Program {
             File.WriteAllBytes(Path.Combine(shaderOutput,stage == ShaderStage.Vertex ? "vertex.metallib" : "fragment.metallib"),compiled.Binary.Bytecode);
         }
         const string arraySource = "cbuffer BaseColorBuffer : register(b1) { float4 BaseColor; }; struct VOut { float4 Position : SV_Position; float2 Uv : TEXCOORD0; }; Texture2D DiffuseTextures[2] : register(t0); SamplerState DiffuseSamplers[2] : register(s0); float4 PSMain(VOut i) : SV_Target { return (DiffuseTextures[0].Sample(DiffuseSamplers[0],i.Uv)+DiffuseTextures[1].Sample(DiffuseSamplers[1],i.Uv))*0.5*BaseColor; }";
-        var arrayBinary = backend.Compile(new(new ShaderSourceInfo("material-array.hlsl",arraySource),"PSMain","PSMain",ShaderStage.Pixel,ShaderCompileTarget.Metal,new ShaderModel(5,0),"default",[],request.Options),new ShaderFilesystemIncludeResolver(Directory.GetCurrentDirectory()));
-        File.WriteAllBytes(Path.Combine(shaderOutput,"fragment-array.metallib"),arrayBinary.Binary.Bytecode);
+        bool arraysRejected = false;
+        try { backend.Compile(new(new ShaderSourceInfo("material-array.hlsl",arraySource),"PSMain","PSMain",ShaderStage.Pixel,ShaderCompileTarget.Metal,new ShaderModel(5,0),"default",[],request.Options),new ShaderFilesystemIncludeResolver(Directory.GetCurrentDirectory())); }
+        catch (InvalidOperationException error) when (error.Message.Contains("resource arrays are not supported",StringComparison.Ordinal)) { arraysRejected = true; }
+        if (!arraysRejected) { throw new Exception("Unsupported native resource arrays must fail before producing a cooked Metal library"); }
+        if (File.Exists(Path.Combine(shaderOutput,"fragment-array.metallib"))) { File.Delete(Path.Combine(shaderOutput,"fragment-array.metallib")); }
         ShaderCompileRequest customSpace = new(request.Source,request.ProgramName,request.EntryPoint,request.Stage,request.Target,request.ShaderModel,request.Variant,[],new ShaderCompileOptions(new ShaderBindingPolicy(3,0,100,200,300),false,false,true));
         bool spaceRejected = false;
         try { backend.Compile(customSpace,new ShaderFilesystemIncludeResolver(Directory.GetCurrentDirectory())); } catch (NotSupportedException) { spaceRejected = true; }
