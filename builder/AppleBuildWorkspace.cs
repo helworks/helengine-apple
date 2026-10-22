@@ -65,7 +65,7 @@ public static class AppleBuildWorkspace {
             if (!request.SelectedGraphicsOptionValues.TryGetValue("default-" + dimension, out string value) || !int.TryParse(value, out int pixels) || pixels < 1 || pixels > 16384) { throw new InvalidOperationException("Apple selected graphics option default-" + dimension + " must contain a pixel count between 1 and 16384."); }
             configure.Add("-DHELENGINE_APPLE_DEFAULT_" + dimension.ToUpperInvariant() + "=" + pixels.ToString(System.Globalization.CultureInfo.InvariantCulture));
         }
-        if (target == "ios") { configure.AddRange(["-G", "Xcode", "-DCMAKE_SYSTEM_NAME=iOS", "-DCMAKE_OSX_SYSROOT=iphoneos", "-DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO"]); }
+        if (target == "ios") { configure.AddRange(["-G", "Xcode", "-DCMAKE_SYSTEM_NAME=iOS", "-DCMAKE_OSX_SYSROOT=iphoneos", "-DCMAKE_OSX_DEPLOYMENT_TARGET=15.0", "-DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO"]); }
         await RunAsync(cmake, configure, native, "player-configure.log", cancellationToken);
         await RunAsync(cmake, ["--build", native, "--config", profile, "-j", "6"], native, "player-build.log", cancellationToken);
         string sourceBundle = Path.Combine(native, target == "ios" ? profile + "-iphoneos" : "", "helengine_" + target + ".app");
