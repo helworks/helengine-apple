@@ -8,7 +8,7 @@ using helengine.baseplatform.Results;
 namespace helengine.apple.builder;
 
 /// <summary>Shares Apple metadata while rejecting unimplemented cook/runtime stages with actionable errors.</summary>
-public abstract class ApplePlatformAssetBuilder : IPlatformAssetBuilder {
+public abstract class ApplePlatformAssetBuilder : IPlatformAssetBuilder, helengine.IShaderBackendRegistryContributor {
     /// <summary>Creates the target-specific descriptor exposed by the shared Apple builder assembly.</summary>
     protected ApplePlatformAssetBuilder(string target) {
         Definition = ApplePlatformDefinitionFactory.Create(target);
@@ -21,6 +21,12 @@ public abstract class ApplePlatformAssetBuilder : IPlatformAssetBuilder {
 
     /// <summary>Gets target profiles, precision capabilities and the shared Metal graphics contract.</summary>
     public PlatformDefinition Definition { get; }
+
+    /// <summary>Contributes the actual target-specific Metal compiler to the portable authoring registry.</summary>
+    public void RegisterShaderBackends(helengine.ShaderBackendRegistry shaderBackendRegistry) {
+        if (shaderBackendRegistry == null) { throw new ArgumentNullException(nameof(shaderBackendRegistry)); }
+        shaderBackendRegistry.Register(new MetalShaderBackend(Definition.PlatformId));
+    }
 
     /// <summary>Serializes the engine material format and preserves authored shader, texture and fixed GPU buffer identities.</summary>
     public PlatformMaterialCookResult CookMaterial(PlatformMaterialCookRequest request) {

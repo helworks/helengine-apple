@@ -10,7 +10,7 @@ output.mkdir(parents=True, exist_ok=True)
 cmake = tools / 'cmake-3.31.12-macos-universal/CMake.app/Contents/bin/cmake'
 dependencies = [
     {'name': 'spirv-cross', 'url': 'https://github.com/KhronosGroup/SPIRV-Cross.git', 'tag': 'vulkan-sdk-1.4.328.1', 'commit': '7affe74d77f93a622bb5002789d5332d32e512ee', 'flags': ['-DSPIRV_CROSS_ENABLE_TESTS=OFF', '-DSPIRV_CROSS_ENABLE_C_API=OFF']},
-    {'name': 'shaderc', 'url': 'https://github.com/google/shaderc.git', 'tag': 'v2025.3', 'commit': 'eb0bc20d0c31320fe834e4ee8eb02807292b9703', 'flags': ['-DSHADERC_SKIP_TESTS=ON', '-DSHADERC_SKIP_EXAMPLES=ON', '-DSHADERC_SKIP_COPYRIGHT_CHECK=ON', '-DSPIRV_SKIP_TESTS=ON', '-DBUILD_TESTING=OFF']}
+    {'name': 'shaderc', 'url': 'https://github.com/google/shaderc.git', 'tag': 'v2025.3', 'commit': '8c2e602ce440b7739c95ff3d69cecb1adf6becda', 'flags': ['-DSHADERC_SKIP_TESTS=ON', '-DSHADERC_SKIP_EXAMPLES=ON', '-DSHADERC_SKIP_COPYRIGHT_CHECK=ON', '-DSPIRV_SKIP_TESTS=ON', '-DBUILD_TESTING=OFF']}
 ]
 for dependency in dependencies:
     source = tools / (dependency['name'] + '-' + dependency['tag'])

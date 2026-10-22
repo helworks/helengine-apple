@@ -4,5 +4,5 @@
     <HelEngineRoot Condition="'$(HelEngineRoot)' == ''">../../helengine</HelEngineRoot>
   </PropertyGroup>
   <ItemGroup><Compile Remove="macos/**/*.cs;ios/**/*.cs" /></ItemGroup>
-  <ItemGroup><ProjectReference Include="$(HelEngineRoot)/engine/helengine.baseplatform/helengine.baseplatform.csproj" /><ProjectReference Include="$(HelEngineRoot)/engine/helengine.files/helengine.files.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="$(HelEngineRoot)/engine/helengine.baseplatform/helengine.baseplatform.csproj" /><ProjectReference Include="$(HelEngineRoot)/engine/helengine.files/helengine.files.csproj" /><ProjectReference Include="$(HelEngineRoot)/engine/helengine.vulkan/helengine.vulkan.csproj" /></ItemGroup>
 </Project>
