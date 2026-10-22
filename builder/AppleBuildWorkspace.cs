@@ -68,6 +68,14 @@ public static class AppleBuildWorkspace {
         if (target == "ios") { configure.AddRange(["-G", "Xcode", "-DCMAKE_SYSTEM_NAME=iOS", "-DCMAKE_OSX_SYSROOT=iphoneos", "-DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO"]); }
         await RunAsync(cmake, configure, native, "player-configure.log", cancellationToken);
         await RunAsync(cmake, ["--build", native, "--config", profile, "-j", "6"], native, "player-build.log", cancellationToken);
+        string sourceBundle = Path.Combine(native, target == "ios" ? profile + "-iphoneos" : "", "helengine_" + target + ".app");
+        if (!Directory.Exists(sourceBundle)) { throw new DirectoryNotFoundException("The native build did not produce its actual application bundle: " + sourceBundle); }
+        string bundle = Path.GetFullPath(Path.Combine(output, "helengine_" + target + ".app"));
+        if (!bundle.StartsWith(output + Path.DirectorySeparatorChar, StringComparison.Ordinal)) { throw new InvalidOperationException("Apple application bundle escaped the selected output root."); }
+        if (Directory.Exists(bundle)) { Directory.Delete(bundle, true); }
+        CopyBundleTree(sourceBundle, bundle, cancellationToken);
+        string resources = target == "macos" ? Path.Combine(bundle, "Contents", "Resources") : bundle;
+        CopyBundleTree(Path.Combine(output, "cooked"), Path.Combine(resources, "cooked"), cancellationToken);
         return new(true, [], [.. scenes], [.. assets]);
     }
 
@@ -110,6 +118,20 @@ public static class AppleBuildWorkspace {
                 Directory.CreateDirectory(Path.GetDirectoryName(target));
                 if (Path.GetFullPath(entry) != target) { File.Copy(entry, target, true); }
             }
+        }
+    }
+
+    /// <summary>Copies a verified native bundle or cooked subtree to its exact portable package location, refusing symlink indirection.</summary>
+    static void CopyBundleTree(string source, string destination, CancellationToken cancellationToken) {
+        if (!Directory.Exists(source)) { throw new DirectoryNotFoundException("Required Apple application payload is absent: " + source); }
+        Directory.CreateDirectory(destination);
+        foreach (string entry in Directory.EnumerateFileSystemEntries(source)) {
+            cancellationToken.ThrowIfCancellationRequested();
+            FileAttributes attributes = File.GetAttributes(entry);
+            if ((attributes & FileAttributes.ReparsePoint) != 0) { throw new InvalidOperationException("Apple package payload symlinks are not supported: " + entry); }
+            string target = Path.Combine(destination, Path.GetFileName(entry));
+            if ((attributes & FileAttributes.Directory) != 0) { CopyBundleTree(entry, target, cancellationToken); }
+            else { File.Copy(entry, target, true); }
         }
     }
 

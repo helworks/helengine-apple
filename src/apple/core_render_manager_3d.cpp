@@ -11,9 +11,6 @@
 
 namespace helengine::apple {
 CoreRenderManager3D::CoreRenderManager3D(MetalRenderer& renderer,CoreRenderManager2D& bridge) : Renderer(renderer),Bridge(bridge) { }
-::RuntimeModel* CoreRenderManager3D::BuildModelFromRaw(::ModelAsset* data) {
-    throw std::runtime_error("Apple generated model/material adapter is incomplete for asset: "+(data ? data->get_Id().raw() : std::string("<null>")));
-}
 void CoreRenderManager3D::Draw() {
     if (!get_OwnerCore() || !get_OwnerCore()->get_ObjectManager()) throw std::logic_error("Apple camera dispatch requires initialized generated Core/ObjectManager");
     std::vector<::ICamera*> cameras;

@@ -17,7 +17,11 @@ AppleRunOptions::AppleRunOptions(int argc,char** argv) {
             else { auto result=std::from_chars(value.data(),value.data()+value.size(),Frames); if (result.ec!=std::errc() || result.ptr!=value.data()+value.size() || Frames==0) { throw std::invalid_argument("--frames must be a positive integer."); } }
         } else { throw std::invalid_argument("Unknown Apple player flag: " + argument); }
     }
-    if (ContentRoot.empty() || !std::filesystem::is_directory(ContentRoot)) { throw std::invalid_argument("Apple player requires --content with an existing cooked package directory."); }
+    if (ContentRoot.empty() && argc>0 && argv[0]) {
+        const auto resources=std::filesystem::absolute(argv[0]).parent_path().parent_path()/"Resources";
+        if (std::filesystem::is_directory(resources/"cooked")) ContentRoot=resources.string();
+    }
+    if (ContentRoot.empty() || !std::filesystem::is_directory(ContentRoot)) { throw std::invalid_argument("Apple player requires bundled cooked resources or --content with an existing cooked package directory."); }
     if (Offscreen && !Frames) { throw std::invalid_argument("Offscreen core validation requires an explicit positive --frames limit."); }
 }
 }
