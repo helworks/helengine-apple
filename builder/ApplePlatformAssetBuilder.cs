@@ -22,16 +22,18 @@ public abstract class ApplePlatformAssetBuilder : IPlatformAssetBuilder {
     /// <summary>Gets target profiles, precision capabilities and the shared Metal graphics contract.</summary>
     public PlatformDefinition Definition { get; }
 
-    /// <summary>Rejects missing inputs and incomplete engine shader translation rather than emitting incompatible material bytes.</summary>
+    /// <summary>Serializes the engine material format and preserves authored shader, texture and fixed GPU buffer identities.</summary>
     public PlatformMaterialCookResult CookMaterial(PlatformMaterialCookRequest request) {
         if (request == null) { throw new ArgumentNullException(nameof(request)); }
-        throw new NotSupportedException($"{Definition.PlatformId}: engine shader payload translation and reflection to Metal is not integrated. Native diagnostic shaders do not replace authored materials.");
+        if (request.TargetPlatformId != Definition.PlatformId || request.SelectedGraphicsProfileId != "metal" || request.SchemaId != "standard-shader") { throw new ArgumentException("Apple material target, Metal graphics profile and standard-shader schema must match the selected builder.", nameof(request)); }
+        Definition.CodegenProfiles.Single().NumericCapabilities.RequireSupported(request.NumericPolicy);
+        return AppleMaterialCooker.Cook(request);
     }
 
-    /// <summary>Rejects an incomplete generated-core player explicitly; native renderer validation is built through scripts/build_native.py.</summary>
+    /// <summary>Stages real graph payloads and invokes the native compiler with exact target, profile and numeric ABI contracts.</summary>
     public Task<PlatformBuildReport> BuildAsync(PlatformBuildRequest request, IPlatformBuildProgressReporter progressReporter, IPlatformBuildDiagnosticReporter diagnosticReporter, CancellationToken cancellationToken) {
         if (request == null) { throw new ArgumentNullException(nameof(request)); }
         cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromException<PlatformBuildReport>(new NotSupportedException($"{Definition.PlatformId}: generated-core startup, content and renderer bridge integration is incomplete; no game player has been built. Use the explicitly labelled native diagnostic for SDK/GPU validation."));
+        return AppleBuildWorkspace.BuildAsync(Definition.PlatformId, request, progressReporter, diagnosticReporter, cancellationToken);
     }
 }

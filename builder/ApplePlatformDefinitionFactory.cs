@@ -16,9 +16,11 @@ public static class ApplePlatformDefinitionFactory {
                 new("profiler", "Profiler", "Requires generated scopes and a verified Tracy capture; currently rejected", "metal", "default", [])
             ],
             [new("metal", "Metal", "Shared native Apple renderer", [])],
-            [], [], [],
+            [], [AppleMaterialSchema.Create()], [],
             [new("default", "Native C++20", "Little-endian ARM64 Clang with the engine row-vector convention", PlatformCodegenLanguage.Cpp, PlatformSerializationEndianness.LittleEndian,
                 [
+                    new("generated-math-convention", "Generated Math Convention", PlatformSettingKind.Text, "engine-row-vector", true, []),
+                    new("pointer-size-bytes", "Pointer Size Bytes", PlatformSettingKind.Text, "8", true, []),
                     new(PlatformCodegenSettingIds.EnabledFeatures, "Enabled Runtime Features", PlatformSettingKind.Text, "host_file_system", true, []),
                     new("load-native-runtime-metadata", "Load Native Runtime Metadata", PlatformSettingKind.Boolean, "true", true, []),
                     new("codegen-use-rtti", "Use Compiler RTTI", PlatformSettingKind.Boolean, "true", true, []),
