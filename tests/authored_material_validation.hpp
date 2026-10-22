@@ -35,6 +35,7 @@ public:
         const std::array<float,4> color = {0.5f,1,0.25f,1};
         std::array<MaterialBuffer,2> buffers = {MaterialBuffer{0,1,std::vector<std::uint8_t>(64)},MaterialBuffer{1,2,std::vector<std::uint8_t>(16)}};
         std::memcpy(buffers[0].Bytes.data(),matrix.data(),64);
+
         std::memcpy(buffers[1].Bytes.data(),color.data(),16);
         bool rejected = false;
         try { renderer.SubmitMaterialMesh(mesh,material,buffers,{}); } catch (const std::invalid_argument&) { rejected = true; }
@@ -50,6 +51,11 @@ public:
         const auto moved=renderer.RenderOffscreen(64,64);
         if (moved[(32*64+48)*4]!=16 || moved[(32*64+16)*4]!=0) throw std::runtime_error("Authored default-column-major row-vector transform packing is incorrect");
         std::memcpy(buffers[0].Bytes.data(),matrix.data(),64);
+        const auto culledMaterial=renderer.UploadMaterial(vertex,"VSMain",fragment,"PSMain",MaterialPipelineState{0,2,true,true});
+        renderer.SubmitMaterialMesh(mesh,culledMaterial,buffers,bindings);
+        const auto frontPixels=renderer.RenderOffscreen(64,64);
+        if (frontPixels[center]!=16 || !renderer.GetLastVisibleMeshSamples()) throw std::runtime_error("Authored canonical counterclockwise front face was culled by the native material state");
+        renderer.ReleaseMaterial(culledMaterial);
         renderer.ReleaseMaterial(material);
         std::cout << "Authored single-texture material pixels verified\n" << std::flush;
         const auto cubeFragment=Read(root+"/fragment-cube.metallib");
