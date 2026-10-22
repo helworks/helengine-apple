@@ -6,6 +6,10 @@
 #include "apple/apple_sdl_host.hpp"
 #include "Core.hpp"
 #include "CoreInitializationOptions.hpp"
+#include "ObjectManager.hpp"
+#include "Entity.hpp"
+#include "Component.hpp"
+#include "ButtonComponent.hpp"
 #include "PlatformInfo.hpp"
 #include "PlatformSettingsConfiguration.hpp"
 #include "HostFileSystemContentStreamSource.hpp"
@@ -124,8 +128,15 @@ int ApplePlayer::Run(const AppleRunOptions& options) {
         for (uint8_t byte : pixels) checksum=(checksum^byte)*1099511628211ULL;
         bool nonuniform=false;
         for (size_t index=4;index+3<pixels.size();index+=4) if (pixels[index]!=pixels[0] || pixels[index+1]!=pixels[1] || pixels[index+2]!=pixels[2] || pixels[index+3]!=pixels[3]) { nonuniform=true; break; }
-        std::cout << "core_frames=" << frames << " draw_calls=" << render3d.get_LastDrawCallCount() << " rgba_bytes=" << pixels.size() << " checksum=" << checksum << " nonuniform=" << nonuniform << '\n';
+        uint32_t buttonCount=0;
+        auto* entities=core.get_ObjectManager()->get_Entities();
+        for (int32_t index=0;index<entities->get_Count();++index) {
+            auto* components=(*entities)[index]->get_Components();
+            for (int32_t componentIndex=0;componentIndex<components->get_Count();++componentIndex) if (dynamic_cast<::ButtonComponent*>((*components)[componentIndex])) ++buttonCount;
+        }
+        std::cout << "core_frames=" << frames << " draw_calls=" << render3d.get_LastDrawCallCount() << " rgba_bytes=" << pixels.size() << " checksum=" << checksum << " nonuniform=" << nonuniform << " button_count=" << buttonCount << '\n';
         if (options.Offscreen && (!frames || render3d.get_LastDrawCallCount()<=0 || !nonuniform)) throw std::runtime_error("Generated-core offscreen run produced no drawable content; menu validation failed");
+        if (options.ExpectedButtons && buttonCount!=options.ExpectedButtons) throw std::runtime_error("Generated scene button count differs from --expect-buttons");
         coreNeedsShutdown=false; core.Dispose();
         return 0;
     } catch (...) {
