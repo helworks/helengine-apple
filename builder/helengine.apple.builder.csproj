@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>disable</Nullable><NuGetAudit>false</NuGetAudit>
+    <HelEngineRoot Condition="'$(HelEngineRoot)' == ''">../../helengine</HelEngineRoot>
+  </PropertyGroup>
+  <ItemGroup><ProjectReference Include="$(HelEngineRoot)/engine/helengine.baseplatform/helengine.baseplatform.csproj" /></ItemGroup>
+</Project>
