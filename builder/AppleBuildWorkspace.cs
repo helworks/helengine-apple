@@ -22,7 +22,7 @@ public static class AppleBuildWorkspace {
         string profile = request.SelectedBuildProfileId switch {
             "debug" => "Debug", "release" => "Release", "profiler" => "Profiler", _ => throw new ArgumentException("Apple build profile must be debug, release or profiler.")
         };
-        if (profile == "Profiler") { throw new NotSupportedException("Apple Profiler requires generated scope integration and a verified Tracy capture."); }
+        if (profile == "Profiler" && target == "ios") { throw new NotSupportedException("iOS Profiler requires a verified native runtime capture."); }
         cancellationToken.ThrowIfCancellationRequested();
         string staged = Directory.GetCurrentDirectory();
         string output = Path.GetFullPath(request.OutputRoot);

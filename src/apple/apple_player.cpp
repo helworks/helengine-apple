@@ -7,6 +7,7 @@
 #include "Core.hpp"
 #include "CoreInitializationOptions.hpp"
 #include "apple/core_player_observer.hpp"
+#include "apple/apple_tracy_profiler.hpp"
 #include "PlatformInfo.hpp"
 #include "PlatformSettingsConfiguration.hpp"
 #include "HostFileSystemContentStreamSource.hpp"
@@ -81,6 +82,9 @@ int ApplePlayer::Run(const AppleRunOptions& options,CorePlayerObserver* observer
     ::CoreInitializationOptions initialization;
     initialization.ContentStreamSource=content.get(); initialization.SceneCatalog=catalog.get(); initialization.StandardPlatformInputConfiguration=standardInput.get();
     initialization.SceneLoadingBudgetMilliseconds=he_get_runtime_scene_loading_budget_milliseconds(); initialization.PlatformSettingsConfiguration=settings.get();
+#if defined(TRACY_ENABLE)
+    initialization.CpuProfileSink=GetAppleCpuProfileSink();
+#endif
     ::Core core(&initialization);
     ::PlatformInfo platform(he_get_runtime_platform_name(),he_get_runtime_platform_version());
     int width=HELENGINE_APPLE_DEFAULT_WIDTH,height=HELENGINE_APPLE_DEFAULT_HEIGHT;
@@ -122,6 +126,9 @@ int ApplePlayer::Run(const AppleRunOptions& options,CorePlayerObserver* observer
             else pixels=renderer.RenderOffscreen(width,height);
             const auto drawEnd=std::chrono::steady_clock::now();
             core.SetHostFrameTimings(std::chrono::duration<double,std::milli>(drawStart-updateStart).count(),std::chrono::duration<double,std::milli>(drawEnd-drawStart).count());
+#if defined(TRACY_ENABLE)
+            FlushAppleProfilerFrame(&core);
+#endif
             render3d.FlushReleasedAssets(); render2d.FlushReleasedTextures(); ++frames;
             if (observer && options.Offscreen) observer->AfterDraw(core,renderer,pixels,width,height,frames-1);
         }

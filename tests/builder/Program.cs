@@ -13,6 +13,10 @@ public static class Program {
             if (concreteBuilders.Length != 1) { throw new Exception("Existing assembly-only loader would select an ambiguous Apple target"); }
             if (builder.Descriptor.TargetPlatformId != builder.Definition.PlatformId) { throw new Exception("Target identity mismatch"); }
             if (!builder.Definition.BuildProfiles.Select(profile => profile.ProfileId).SequenceEqual(["debug", "release", "profiler"])) { throw new Exception("Public profile contract changed"); }
+            foreach (var profile in builder.Definition.BuildProfiles) {
+                string expected = profile.ProfileId == "profiler" ? "true" : "false";
+                if (profile.CodegenSettingDefaultValues["codegen-generated-function-profiling"] != expected) { throw new Exception("Build profile generated-scope default does not match its explicit native profile"); }
+            }
             if (builder.Definition.GraphicsProfiles.Single().ProfileId != "metal") { throw new Exception("Apple backend must use Metal"); }
             if (builder.Definition.CodegenProfiles.Single().NumericCapabilities.SupportedPolicies.Count < 2) { throw new Exception("Configurable precision was narrowed"); }
             try { builder.CookMaterial(null); throw new Exception("Missing material request accepted"); }
