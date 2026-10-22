@@ -66,7 +66,7 @@ std::vector<ShadowDraw> CoreRenderManager3D::BuildShadowCasters(::LightComponent
         if (!model || !Models.contains(model) || ReleasedModels.contains(model)) throw std::invalid_argument("Apple shadow caster references a foreign or released native model");
         auto* materials=drawable->get_Materials();
         if (!materials || materials->Length<=0 || (materials->Length!=1 && static_cast<size_t>(materials->Length)<model->Meshes.size())) throw std::invalid_argument("Apple shadow caster requires its authored submesh materials");
-        const auto world=drawable->get_Parent()->get_WorldTransformMatrix();
+        auto world=drawable->get_Parent()->get_WorldTransformMatrix();
         ::float4x4 transform; ::float4x4::Multiply__ref0_ref1_out2(world,viewProjection,transform);
         for (size_t submesh=0;submesh<model->Meshes.size();++submesh) {
             auto* material=(*materials)[materials->Length==1 ? 0 : static_cast<int32_t>(submesh)];
