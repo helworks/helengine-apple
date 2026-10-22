@@ -54,6 +54,9 @@ public static class Program {
         if (backend.UseSharedCache) { throw new Exception("Metal libraries from different Apple SDKs must not share the engine's target-only compile cache"); }
         var result = backend.Compile(request, new ShaderFilesystemIncludeResolver(Directory.GetCurrentDirectory()));
         if (!result.Success || result.Binary.Target != ShaderCompileTarget.Metal || System.Text.Encoding.ASCII.GetString(result.Binary.Bytecode, 0, 4) != "MTLB") { throw new Exception("Authored shader did not produce a real Metal library"); }
+        ShaderCompileRequest pixel = new(new ShaderSourceInfo("textured.hlsl", "Texture2D DiffuseTexture : register(t0); SamplerState DiffuseSampler : register(s0); float4 PSMain(float2 uv : TEXCOORD0) : SV_Target { return DiffuseTexture.Sample(DiffuseSampler,uv); }"), "PSMain", "PSMain", ShaderStage.Pixel, ShaderCompileTarget.Metal, new ShaderModel(5,0), "default", [], request.Options);
+        var textured = backend.Compile(pixel,new ShaderFilesystemIncludeResolver(Directory.GetCurrentDirectory()));
+        if (!textured.Success || textured.Binary.Bytecode.Length == 0) { throw new Exception("Authored textured shader compilation failed"); }
         ShaderCompileRequest invalid = new(new ShaderSourceInfo("broken.hlsl", "this is not valid HLSL"), "VSMain", "VSMain", ShaderStage.Vertex, ShaderCompileTarget.Metal, new ShaderModel(5,0), "default", [], request.Options);
         bool rejected = false;
         try { backend.Compile(invalid, new ShaderFilesystemIncludeResolver(Directory.GetCurrentDirectory())); }
