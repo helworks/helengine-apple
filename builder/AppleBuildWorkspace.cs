@@ -22,6 +22,9 @@ public static class AppleBuildWorkspace {
         string profile = request.SelectedBuildProfileId switch {
             "debug" => "Debug", "release" => "Release", "profiler" => "Profiler", _ => throw new ArgumentException("Apple build profile must be debug, release or profiler.")
         };
+        if (request.ExecutionScope != PlatformBuildExecutionScope.AssetsOnly && profile != "Profiler" && request.SelectedCodegenOptionValues.TryGetValue("codegen-generated-function-profiling", out string generatedProfiling) && bool.TryParse(generatedProfiling, out bool enabled) && enabled) {
+            throw new NotSupportedException($"Apple target '{target}' build profile '{request.SelectedBuildProfileId}' cannot enable 'codegen-generated-function-profiling'; generated scopes require the native 'profiler' profile with Tracy linkage.");
+        }
         if (profile == "Profiler" && target == "ios") { throw new NotSupportedException("iOS Profiler requires a verified native runtime capture."); }
         cancellationToken.ThrowIfCancellationRequested();
         string staged = Directory.GetCurrentDirectory();

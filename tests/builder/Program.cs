@@ -9,6 +9,7 @@ public static class Program {
         ApplePlatformAssetBuilder[] builders = [new MacOSPlatformAssetBuilder(), new IosPlatformAssetBuilder()];
         foreach (ApplePlatformAssetBuilder builder in builders) {
             GeneratedProfilingMetadataTests.Run(builder.Definition);
+            GeneratedProfilingBuildValidationTests.Run(builder);
             if (builder.Definition.CodegenProfiles.Single().Settings.Single(setting => setting.SettingId == "generated-math-convention").DefaultValue != "engine-row-vector") { throw new Exception("Custom target omitted engine matrix convention"); }
             Type[] concreteBuilders = builder.GetType().Assembly.GetTypes().Where(type => !type.IsAbstract && typeof(ApplePlatformAssetBuilder).IsAssignableFrom(type)).ToArray();
             if (concreteBuilders.Length != 1) { throw new Exception("Existing assembly-only loader would select an ambiguous Apple target"); }
