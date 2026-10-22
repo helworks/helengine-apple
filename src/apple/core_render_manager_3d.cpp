@@ -6,11 +6,13 @@
 #include "Entity.hpp"
 #include "ModelAsset.hpp"
 #include "IRenderQueue3D.hpp"
+#include "RendererBackendCapabilityProfile.hpp"
 #include <algorithm>
 #include <stdexcept>
 
 namespace helengine::apple {
 CoreRenderManager3D::CoreRenderManager3D(MetalRenderer& renderer,CoreRenderManager2D& bridge) : Renderer(renderer),Bridge(bridge) { }
+::RendererBackendCapabilityProfile* CoreRenderManager3D::GetCapabilityProfile() { return new ::RendererBackendCapabilityProfile(true,false,false,false,4,4); }
 void CoreRenderManager3D::Draw() {
     if (Disposed || !get_OwnerCore() || !get_OwnerCore()->get_ObjectManager()) throw std::logic_error("Apple camera dispatch requires initialized generated Core/ObjectManager and a live renderer");
     std::vector<::ICamera*> cameras;
@@ -29,6 +31,8 @@ void CoreRenderManager3D::Draw() {
     for (auto* camera : cameras) {
         auto* queue=camera->get_RenderQueue3D();
         if (queue && queue->get_Count()) {
+            const auto clear=camera->get_ClearSettings();
+            if (!clear.ClearDepthEnabled || clear.ClearDepth!=1.0f) throw std::invalid_argument("Apple indexed camera requires an explicit depth clear of one until depth retention is implemented");
             if (Renderer.HasPendingDraws()) throw std::runtime_error("Apple multiple-camera 3D shadow passes require separate retained frame attachments");
             if (camera->get_RenderTarget()) throw std::runtime_error("Apple generated camera RenderTarget attachments are not integrated");
             auto viewport=camera->get_Viewport();

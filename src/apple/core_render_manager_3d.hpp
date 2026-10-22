@@ -101,6 +101,8 @@ public:
     void Dispose() override;
     /// Binds exact authored material resources for each generated submesh and queues actual indexed Metal work.
     void Visit(::IDrawable3D* drawable) override;
+    /// Reports only implemented forward rendering and the shared four-light/four-shadow fixed GPU contract.
+    ::RendererBackendCapabilityProfile* GetCapabilityProfile() override;
     /// Visits enabled cameras in authored order and submits their real generated 2D commands.
     void Draw() override;
     /// Reports genuine submitted packets for diagnostics and offscreen assertions.

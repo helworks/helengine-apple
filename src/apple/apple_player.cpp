@@ -123,6 +123,7 @@ int ApplePlayer::Run(const AppleRunOptions& options,CorePlayerObserver* observer
             const auto drawEnd=std::chrono::steady_clock::now();
             core.SetHostFrameTimings(std::chrono::duration<double,std::milli>(drawStart-updateStart).count(),std::chrono::duration<double,std::milli>(drawEnd-drawStart).count());
             render2d.FlushReleasedTextures(); ++frames;
+            if (observer && options.Offscreen) observer->AfterDraw(core,renderer,pixels,width,height,frames-1);
         }
         uint64_t checksum=1469598103934665603ULL;
         for (uint8_t byte : pixels) checksum=(checksum^byte)*1099511628211ULL;
