@@ -27,6 +27,8 @@ public static class ApplePlatformDefinitionFactory {
                 [
                     new("generated-math-convention", "Generated Math Convention", PlatformSettingKind.Text, "engine-row-vector", true, []),
                     new("pointer-size-bytes", "Pointer Size Bytes", PlatformSettingKind.Text, "8", true, []),
+                    new("codegen-generated-function-profiling", "Generated Function Profiling", PlatformSettingKind.Boolean, "false", true, []),
+                    new("codegen-generated-function-profiling-maintained-symbol-prefixes", "Maintained Profiling Symbol Prefixes", PlatformSettingKind.Text, "Core,SceneManager,RenderCommandListBuilder2D", true, []),
                     new(PlatformCodegenSettingIds.EnabledFeatures, "Enabled Runtime Features", PlatformSettingKind.Text, "host_file_system", true, []),
                     new("load-native-runtime-metadata", "Load Native Runtime Metadata", PlatformSettingKind.Boolean, "true", true, []),
                     new("codegen-use-rtti", "Use Compiler RTTI", PlatformSettingKind.Boolean, "true", true, []),
