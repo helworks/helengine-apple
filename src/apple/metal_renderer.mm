@@ -104,7 +104,7 @@ namespace helengine::apple {
         pass.colorAttachments[0].texture = target;
         pass.colorAttachments[0].loadAction = MTLLoadActionClear;
         pass.colorAttachments[0].storeAction = MTLStoreActionStore;
-        pass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1);
+        pass.colorAttachments[0].clearColor = MTLClearColorMake(ClearColor[0],ClearColor[1],ClearColor[2],ClearColor[3]);
         const bool hasMesh = std::any_of(Draws.begin(),Draws.end(),[](const DrawPacket& draw) { return draw.Mesh != 0; });
         if (hasMesh) {
             MTLTextureDescriptor* depthDescriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatDepth32Float width:target.width height:target.height mipmapped:NO];
@@ -398,6 +398,11 @@ namespace helengine::apple {
 
     void MetalRenderer::DiscardFrame() { Resources->Draws.clear(); }
     bool MetalRenderer::HasPendingDraws() const { return !Resources->Draws.empty(); }
+    std::size_t MetalRenderer::GetQueuedDrawCount() const { return Resources->Draws.size(); }
+    void MetalRenderer::SetClearColor(std::array<float,4> color) {
+        for (float value : color) if (!std::isfinite(value)) throw std::invalid_argument("Metal clear color must be finite");
+        Resources->ClearColor=color;
+    }
 
     std::vector<std::uint8_t> MetalRenderer::ValidateOffscreen() {
         if (!Resources->Draws.empty()) throw std::logic_error("Metal offscreen validation requires an empty frame");

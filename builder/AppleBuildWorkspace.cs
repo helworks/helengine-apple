@@ -61,6 +61,10 @@ public static class AppleBuildWorkspace {
         string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         string cmake = Path.Combine(home, "dev/helworks/tools/cmake-3.31.12-macos-universal/CMake.app/Contents/bin/cmake");
         List<string> configure = ["-S", repository, "-B", native, "-DHELENGINE_DIAGNOSTIC_ONLY=OFF", "-DHELENGINE_CORE_CPP_ROOT=" + Path.GetFullPath(request.GeneratedCoreCppRootPath), "-DHELENGINE_CODE_ROOT=" + code, "-DHELENGINE_CONTENT_ROOT=" + output, "-DHELENGINE_NATIVE_PROFILE=" + profile, "-DCMAKE_OSX_ARCHITECTURES=arm64", "-DCMAKE_BUILD_TYPE=" + profile];
+        foreach (string dimension in new[] { "width", "height" }) {
+            if (!request.SelectedGraphicsOptionValues.TryGetValue("default-" + dimension, out string value) || !int.TryParse(value, out int pixels) || pixels < 1 || pixels > 16384) { throw new InvalidOperationException("Apple selected graphics option default-" + dimension + " must contain a pixel count between 1 and 16384."); }
+            configure.Add("-DHELENGINE_APPLE_DEFAULT_" + dimension.ToUpperInvariant() + "=" + pixels.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
         if (target == "ios") { configure.AddRange(["-G", "Xcode", "-DCMAKE_SYSTEM_NAME=iOS", "-DCMAKE_OSX_SYSROOT=iphoneos", "-DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO"]); }
         await RunAsync(cmake, configure, native, "player-configure.log", cancellationToken);
         await RunAsync(cmake, ["--build", native, "--config", profile, "-j", "6"], native, "player-build.log", cancellationToken);

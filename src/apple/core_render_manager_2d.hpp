@@ -48,6 +48,8 @@ namespace helengine::apple {
     public:
         /// Binds a real Metal device to the generated engine's 2D API.
         explicit CoreRenderManager2D(MetalRenderer& renderer);
+        /// Applies the authored generated glyph-command reuse budget without inventing a host policy.
+        void SetTextCommandReuseMemoryBudgetBytes(int32_t bytes) { Commands.SetTextCommandReuseMemoryBudgetBytes(bytes); }
         /// Creates an RGBA32 runtime texture while preserving engine resource identity and ownership metadata.
         ::RuntimeTexture* BuildTextureFromRaw(::TextureAsset* data) override;
         /// Selects grayscale font atlases until independent RGB coverage has a validated native shader contract.

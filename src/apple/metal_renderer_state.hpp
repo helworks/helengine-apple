@@ -47,6 +47,8 @@ namespace helengine::apple {
         std::uint64_t NextMaterial = 1;
         /// Current clip copied into every packet before encoding starts.
         std::optional<ScissorRect> Clip;
+        /// Camera-selected clear color, retained until the next explicit selection.
+        std::array<float,4> ClearColor {0,0,0,1};
         /// Initializes device, command queue and precompiled Metal shader library.
         State();
         /// Loads exact cooked library bytes into the hardware device without retaining caller-owned memory.

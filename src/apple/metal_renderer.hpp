@@ -66,5 +66,9 @@ namespace helengine::apple {
         void DiscardFrame();
         /// Returns whether a generated resource release must wait for this frame's GPU submission.
         bool HasPendingDraws() const;
+        /// Returns the exact queued packet count before presentation consumes the frame.
+        std::size_t GetQueuedDrawCount() const;
+        /// Uses the active generated camera's explicit clear color for the next native frame.
+        void SetClearColor(std::array<float,4> color);
     };
 }
