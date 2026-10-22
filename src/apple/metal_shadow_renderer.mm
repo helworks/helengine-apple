@@ -20,12 +20,13 @@ std::uint64_t MetalRenderer::CreateShadowTexture(std::uint32_t width,std::uint32
     return identity;
 }
 
-void MetalRenderer::RenderShadowMeshes(std::uint64_t identity,std::uint32_t face,std::span<const ShadowDraw> draws) {
+void MetalRenderer::RenderShadowMeshes(std::uint64_t identity,std::uint32_t face,std::span<const ShadowDraw> draws,std::optional<ScissorRect> atlasRegion) {
     if (HasPendingDraws()) throw std::logic_error("Metal shadow rendering must precede queued main-frame submissions");
     auto found=Resources->Textures.find(identity);
     if (found==Resources->Textures.end() || found->second.pixelFormat!=MTLPixelFormatR32Float) throw std::invalid_argument("Metal shadow rendering requires an owned R32Float target");
     id<MTLTexture> target=found->second;
     if (face>=(target.textureType==MTLTextureTypeCube ? 6u : 1u)) throw std::invalid_argument("Metal shadow face is outside target dimensions");
+    if (atlasRegion && (target.textureType!=MTLTextureType2D || !atlasRegion->Width || !atlasRegion->Height || static_cast<uint64_t>(atlasRegion->X)+atlasRegion->Width>target.width || static_cast<uint64_t>(atlasRegion->Y)+atlasRegion->Height>target.height)) throw std::invalid_argument("Metal shadow atlas region must remain inside its 2D target");
     for (const auto& draw : draws) {
         if (!Resources->Meshes.contains(draw.Mesh)) throw std::invalid_argument("Metal shadow caster references an unavailable mesh");
         for (float value : draw.Uniforms.WorldViewProjection) if (!std::isfinite(value)) throw std::invalid_argument("Metal shadow clip matrix must be finite");
@@ -39,7 +40,7 @@ void MetalRenderer::RenderShadowMeshes(std::uint64_t identity,std::uint32_t face
     if (!depth) throw std::runtime_error("Metal shadow depth attachment allocation failed");
     MTLRenderPassDescriptor* pass=[MTLRenderPassDescriptor renderPassDescriptor];
     pass.colorAttachments[0].texture=target; pass.colorAttachments[0].slice=face;
-    pass.colorAttachments[0].loadAction=MTLLoadActionClear; pass.colorAttachments[0].storeAction=MTLStoreActionStore;
+    pass.colorAttachments[0].loadAction=atlasRegion ? MTLLoadActionLoad : MTLLoadActionClear; pass.colorAttachments[0].storeAction=MTLStoreActionStore;
     pass.colorAttachments[0].clearColor=MTLClearColorMake(1,1,1,1);
     pass.depthAttachment.texture=depth; pass.depthAttachment.loadAction=MTLLoadActionClear; pass.depthAttachment.storeAction=MTLStoreActionDontCare; pass.depthAttachment.clearDepth=1;
     id<MTLCommandBuffer> command=[Resources->Queue commandBuffer];
@@ -48,6 +49,11 @@ void MetalRenderer::RenderShadowMeshes(std::uint64_t identity,std::uint32_t face
     if (!encoder) throw std::runtime_error("Metal shadow encoder allocation failed");
     [encoder setRenderPipelineState:Resources->ShadowPipeline]; [encoder setDepthStencilState:Resources->MeshDepthState];
     [encoder setCullMode:MTLCullModeNone];
+    if (atlasRegion) {
+        const MTLViewport viewport={static_cast<double>(atlasRegion->X),static_cast<double>(atlasRegion->Y),static_cast<double>(atlasRegion->Width),static_cast<double>(atlasRegion->Height),0,1};
+        const MTLScissorRect scissor={atlasRegion->X,atlasRegion->Y,atlasRegion->Width,atlasRegion->Height};
+        [encoder setViewport:viewport]; [encoder setScissorRect:scissor];
+    }
     for (const auto& draw : draws) {
         const auto& mesh=Resources->Meshes.at(draw.Mesh);
         [encoder setVertexBuffer:mesh.Vertices offset:0 atIndex:0];

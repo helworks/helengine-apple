@@ -6,6 +6,7 @@
 #include "apple/material_buffer.hpp"
 #include "apple/material_texture.hpp"
 #include "apple/shadow_draw.hpp"
+#include "apple/material_pipeline_state.hpp"
 #include <string_view>
 #include <array>
 #include <optional>
@@ -40,7 +41,7 @@ namespace helengine::apple {
         /// Allocates a sampleable R32Float shadow target and clears every real face to neutral depth one.
         std::uint64_t CreateShadowTexture(std::uint32_t width,std::uint32_t height,bool cube);
         /// Renders actual indexed casters into one shadow face with a Depth32 attachment and synchronous completion.
-        void RenderShadowMeshes(std::uint64_t target,std::uint32_t face,std::span<const ShadowDraw> draws);
+        void RenderShadowMeshes(std::uint64_t target,std::uint32_t face,std::span<const ShadowDraw> draws,std::optional<ScissorRect> atlasRegion={});
         /// Reads completed float shadow texels directly for GPU depth/face-isolation tests.
         std::vector<float> ReadShadowTexture(std::uint64_t target,std::uint32_t face) const;
         /// Releases a known texture only after synchronous frame completion.
@@ -58,7 +59,7 @@ namespace helengine::apple {
         /// Releases a known mesh after every queued draw using it has completed.
         void ReleaseMesh(std::uint64_t mesh);
         /// Builds a real authored pipeline from cooked Metal libraries and rejects unsupported vertex/resource contracts.
-        std::uint64_t UploadMaterial(std::span<const std::uint8_t> vertexLibrary,std::string_view vertexEntry,std::span<const std::uint8_t> fragmentLibrary,std::string_view fragmentEntry);
+        std::uint64_t UploadMaterial(std::span<const std::uint8_t> vertexLibrary,std::string_view vertexEntry,std::span<const std::uint8_t> fragmentLibrary,std::string_view fragmentEntry,MaterialPipelineState state={});
         /// Queues an authored material only after validating all reflected constants and texture resources.
         void SubmitMaterialMesh(std::uint64_t mesh,std::uint64_t material,std::span<const MaterialBuffer> buffers,std::span<const MaterialTexture> textures);
         /// Releases a known authored pipeline after all of its queued draws have completed.
@@ -79,5 +80,9 @@ namespace helengine::apple {
         std::size_t GetQueuedDrawCount() const;
         /// Uses the active generated camera's explicit clear color for the next native frame.
         void SetClearColor(std::array<float,4> color);
+        /// Snapshots a physical camera viewport for indexed packets; ordered 2D overlays retain full-target NDC coordinates.
+        void SetMeshViewport(std::optional<ScissorRect> viewport);
+        /// Exposes exact active native reflection to skip cooked bindings eliminated by shader optimization.
+        bool IsMaterialBindingActive(std::uint64_t material,std::uint32_t kind,std::uint32_t slot,std::uint32_t stage) const;
     };
 }

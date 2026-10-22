@@ -136,6 +136,9 @@ namespace helengine::apple {
             if (clip.Width == 0 || clip.Height == 0 || clip.X >= target.width || clip.Y >= target.height) continue;
             const MTLScissorRect scissor = {clip.X, clip.Y, std::min<std::size_t>(clip.Width, target.width-clip.X), std::min<std::size_t>(clip.Height, target.height-clip.Y)};
             [encoder setScissorRect:scissor];
+            [encoder setCullMode:MTLCullModeNone];
+            const auto viewport=draw.Mesh!=0 ? draw.MeshViewport : std::nullopt;
+            [encoder setViewport:MTLViewport{viewport ? static_cast<double>(viewport->X) : 0.0,viewport ? static_cast<double>(viewport->Y) : 0.0,viewport ? static_cast<double>(viewport->Width) : static_cast<double>(target.width),viewport ? static_cast<double>(viewport->Height) : static_cast<double>(target.height),0.0,1.0}];
             if (draw.Mesh != 0) {
                 auto mesh = Meshes.find(draw.Mesh);
                 if (mesh == Meshes.end()) {
@@ -149,7 +152,9 @@ namespace helengine::apple {
                         throw std::runtime_error("Metal frame: authored material was released before submission");
                     }
                     [encoder setRenderPipelineState:material->second.Pipeline];
-                    [encoder setDepthStencilState:MeshDepthState];
+                    [encoder setDepthStencilState:material->second.DepthState];
+                    [encoder setCullMode:material->second.CullMode];
+                    [encoder setFrontFacingWinding:MTLWindingClockwise];
                     [encoder setVertexBuffer:mesh->second.Vertices offset:0 atIndex:30];
                     for (const auto& binding : draw.MaterialBuffers) {
                         id<MTLBuffer> constants = [Device newBufferWithBytes:binding.Bytes.data() length:binding.Bytes.size() options:MTLResourceStorageModeShared];
@@ -296,7 +301,8 @@ namespace helengine::apple {
         if (Resources->Meshes.erase(mesh)!=1) throw std::invalid_argument("Metal mesh release: unknown resource identity");
     }
 
-    std::uint64_t MetalRenderer::UploadMaterial(std::span<const std::uint8_t> vertexLibrary,std::string_view vertexEntry,std::span<const std::uint8_t> fragmentLibrary,std::string_view fragmentEntry) {
+    std::uint64_t MetalRenderer::UploadMaterial(std::span<const std::uint8_t> vertexLibrary,std::string_view vertexEntry,std::span<const std::uint8_t> fragmentLibrary,std::string_view fragmentEntry,MaterialPipelineState state) {
+        if (state.BlendMode>1 || state.CullMode>2) throw std::invalid_argument("Authored Metal material has an unknown blend/cull state");
         if (vertexEntry.empty() || fragmentEntry.empty()) throw std::invalid_argument("Authored material requires explicit vertex and fragment entry points");
         id<MTLLibrary> vertex = Resources->LoadLibrary(vertexLibrary);
         id<MTLLibrary> fragment = Resources->LoadLibrary(fragmentLibrary);
@@ -305,7 +311,7 @@ namespace helengine::apple {
         descriptor.fragmentFunction = [fragment newFunctionWithName:[NSString stringWithUTF8String:std::string(fragmentEntry).c_str()]];
         if (!descriptor.vertexFunction || !descriptor.fragmentFunction) throw std::runtime_error("Authored material library did not contain its declared shader entry point");
         descriptor.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
-        descriptor.colorAttachments[0].blendingEnabled = YES;
+        descriptor.colorAttachments[0].blendingEnabled = state.BlendMode==1;
         descriptor.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
         descriptor.colorAttachments[0].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
         descriptor.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorOne;
@@ -327,6 +333,12 @@ namespace helengine::apple {
         NSError* error = nil;
         MTLRenderPipelineReflection* reflection = nil;
         MaterialResource material;
+        MTLDepthStencilDescriptor* depth=[MTLDepthStencilDescriptor new];
+        depth.depthCompareFunction=state.DepthTest ? MTLCompareFunctionLess : MTLCompareFunctionAlways;
+        depth.depthWriteEnabled=state.DepthWrite;
+        material.DepthState=[Resources->Device newDepthStencilStateWithDescriptor:depth];
+        if (!material.DepthState) throw std::runtime_error("Authored Metal material depth state allocation failed");
+        material.CullMode=state.CullMode==0 ? MTLCullModeNone : (state.CullMode==1 ? MTLCullModeFront : MTLCullModeBack);
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
         material.Pipeline = [Resources->Device newRenderPipelineStateWithDescriptor:descriptor options:(MTLPipelineOptionArgumentInfo|MTLPipelineOptionBufferTypeInfo) reflection:&reflection error:&error];
@@ -366,6 +378,7 @@ namespace helengine::apple {
         packet.Texture = 0;
         packet.Mesh = mesh;
         packet.Material = material;
+        packet.MeshViewport = Resources->MeshViewport;
         packet.Clip = Resources->Clip;
         packet.MaterialBuffers.assign(buffers.begin(),buffers.end());
         packet.MaterialTextures.assign(textures.begin(),textures.end());
@@ -423,6 +436,12 @@ namespace helengine::apple {
     void MetalRenderer::DiscardFrame() { Resources->Draws.clear(); }
     bool MetalRenderer::HasPendingDraws() const { return !Resources->Draws.empty(); }
     std::size_t MetalRenderer::GetQueuedDrawCount() const { return Resources->Draws.size(); }
+    void MetalRenderer::SetMeshViewport(std::optional<ScissorRect> viewport) { Resources->MeshViewport=viewport; }
+    bool MetalRenderer::IsMaterialBindingActive(std::uint64_t identity,std::uint32_t kind,std::uint32_t slot,std::uint32_t stage) const {
+        const auto found=Resources->Materials.find(identity);
+        if (found==Resources->Materials.end()) throw std::invalid_argument("Material reflection query requires an owned live pipeline");
+        return std::any_of(found->second.Required.begin(),found->second.Required.end(),[=](const MaterialRequirement& requirement) { return requirement.Kind==kind && requirement.Slot==slot && (requirement.Stage&stage); });
+    }
     void MetalRenderer::SetClearColor(std::array<float,4> color) {
         for (float value : color) if (!std::isfinite(value)) throw std::invalid_argument("Metal clear color must be finite");
         Resources->ClearColor=color;

@@ -15,13 +15,14 @@
 #include "ShaderProgramAsset.hpp"
 #include "ShaderBinaryAsset.hpp"
 #include "ShaderBindingAsset.hpp"
+#include "MaterialRenderState.hpp"
 #include <memory>
 #include <numeric>
 #include <stdexcept>
 
 namespace helengine::apple {
 ::RuntimeModel* CoreRenderManager3D::BuildModelFromRaw(::ModelAsset* data) {
-    if (!data || !data->Positions || !data->Normals || !data->TexCoords) throw std::invalid_argument("Apple model upload requires position, normal and UV arrays");
+    if (Disposed || !data || !data->Positions || !data->Normals || !data->TexCoords) throw std::invalid_argument("Apple model upload requires a live provider and position, normal and UV arrays");
     const auto count=data->Positions->Length;
     if (count<=0 || data->Normals->Length!=count || data->TexCoords->Length!=count) throw std::invalid_argument("Apple model attributes must have equal nonempty lengths");
     std::vector<MeshVertex> vertices;
@@ -90,7 +91,7 @@ void CoreRenderManager3D::CopyBindings(CoreMaterialResource& target,::ShaderProg
 }
 
 ::RuntimeMaterial* CoreRenderManager3D::BuildMaterialFromRaw(::ShaderMaterialAsset* material,::ShaderAsset* shader) {
-    if (!material || !shader) throw std::invalid_argument("Apple authored material requires both material and shader assets");
+    if (Disposed || !material || !shader || !material->RenderState) throw std::invalid_argument("Apple authored material requires a live provider, material, render state and shader assets");
     if (material->get_Id().empty() || material->ShaderAssetId.empty() || material->ShaderAssetId!=shader->get_Id() || shader->TargetName!="metal") throw std::invalid_argument("Apple material requires matching nonempty identities and actual Metal shader target");
     auto* vertex=RequireProgram(shader,material->VertexProgram,::ShaderStage::Vertex);
     auto* fragment=RequireProgram(shader,material->PixelProgram,::ShaderStage::Pixel);
@@ -106,7 +107,8 @@ void CoreRenderManager3D::CopyBindings(CoreMaterialResource& target,::ShaderProg
     CoreMaterialResource resource;
     resource.ShaderId=shader->get_Id().raw();
     CopyBindings(resource,vertex,1); CopyBindings(resource,fragment,2);
-    resource.Identity=Renderer.UploadMaterial(std::span<const uint8_t>(vertexBinary->Bytecode->Data,vertexBinary->Bytecode->Length),vertex->EntryPoint.raw(),std::span<const uint8_t>(fragmentBinary->Bytecode->Data,fragmentBinary->Bytecode->Length),fragment->EntryPoint.raw());
+    const MaterialPipelineState state{static_cast<uint32_t>(material->RenderState->get_BlendMode()),static_cast<uint32_t>(material->RenderState->get_CullMode()),material->RenderState->get_DepthTestEnabled(),material->RenderState->get_DepthWriteEnabled()};
+    resource.Identity=Renderer.UploadMaterial(std::span<const uint8_t>(vertexBinary->Bytecode->Data,vertexBinary->Bytecode->Length),vertex->EntryPoint.raw(),std::span<const uint8_t>(fragmentBinary->Bytecode->Data,fragmentBinary->Bytecode->Length),fragment->EntryPoint.raw(),state);
     Materials.emplace(result.get(),std::move(resource));
     OwnedMaterials.insert(result.get());
     return result.release();
@@ -144,6 +146,7 @@ void CoreRenderManager3D::FlushReleasedAssets() {
 }
 
 void CoreRenderManager3D::Dispose() {
+    if (Disposed) return;
     if (Renderer.HasPendingDraws()) throw std::logic_error("Apple generated provider shutdown requires a completed native frame");
     FlushReleasedAssets();
     for (auto* model : Models) { model->Dispose(); delete model; }
@@ -152,6 +155,9 @@ void CoreRenderManager3D::Dispose() {
     Materials.clear();
     for (auto* material : OwnedMaterials) { material->Dispose(); delete material; }
     OwnedMaterials.clear();
+    if (ShadowAtlas) { Renderer.ReleaseTexture(ShadowAtlas); ShadowAtlas=0; }
+    for (auto& texture : PointShadows) if (texture) { Renderer.ReleaseTexture(texture); texture=0; }
     ::RenderManager3D::Dispose();
+    Disposed=true;
 }
 }

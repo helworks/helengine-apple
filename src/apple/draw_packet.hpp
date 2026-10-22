@@ -18,6 +18,8 @@ namespace helengine::apple {
         std::uint64_t Texture;
         /// Clip inherited at submission time, unaffected by later stack operations.
         std::optional<ScissorRect> Clip;
+        /// Physical camera viewport used by indexed NDC geometry; empty selects the full target.
+        std::optional<ScissorRect> MeshViewport;
         /// Selects the signed-distance pipeline instead of sampling a texture.
         bool Rounded = false;
         /// Per-draw shape dimensions, border and enabled corners.

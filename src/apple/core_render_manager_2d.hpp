@@ -39,8 +39,6 @@ namespace helengine::apple {
         ::SpriteQuad2D BuildBounds(::float4 bounds) const;
         /// Clamps an absolute engine clip to the current physical viewport and parent clip.
         ScissorRect Intersect(::float4 rectangle, ScissorRect parent) const;
-        /// Resolves only textures built by this bridge; unknown and disposed resources are explicit errors.
-        std::uint64_t ResolveTexture(::RuntimeTexture* texture) const;
         /// Builds one immediate drawable through the same generated command list path as camera queues.
         void DrawImmediate(::IDrawable2D* drawable);
         /// Converts all ordered generated commands and enforces balanced clip scopes.
@@ -48,6 +46,8 @@ namespace helengine::apple {
     public:
         /// Binds a real Metal device to the generated engine's 2D API.
         explicit CoreRenderManager2D(MetalRenderer& renderer);
+        /// Resolves same-device native texture identity for authored 3D material bindings.
+        std::uint64_t ResolveTexture(::RuntimeTexture* texture) const;
         /// Applies the authored generated glyph-command reuse budget without inventing a host policy.
         void SetTextCommandReuseMemoryBudgetBytes(int32_t bytes) { Commands.SetTextCommandReuseMemoryBudgetBytes(bytes); }
         /// Creates an RGBA32 runtime texture while preserving engine resource identity and ownership metadata.
