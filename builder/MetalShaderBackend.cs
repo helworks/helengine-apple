@@ -29,6 +29,8 @@ public sealed class MetalShaderBackend : ShaderBackendBase, IShaderBackendCacheP
             string tools = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "dev/helworks/tools");
             string cross = Path.Combine(tools, "spirv-cross/bin/spirv-cross");
             if (!File.Exists(cross)) { throw new FileNotFoundException("Install locked SPIRV-Cross with scripts/bootstrap_shader_tools.py.", cross); }
+            string translator = "/tmp/helengine/macos/helengine_msl_translate";
+            if (!File.Exists(translator)) { throw new FileNotFoundException("Build the native macOS diagnostic to provide the engine-to-Metal resource binding translator.",translator); }
             string root = Path.Combine("/tmp/helengine", PlatformTarget, "shader-compiler");
             Directory.CreateDirectory(root);
             string spirv = Path.Combine(root, "source.spv");
@@ -37,9 +39,9 @@ public sealed class MetalShaderBackend : ShaderBackendBase, IShaderBackendCacheP
             string air = Path.Combine(root, "source.air");
             string library = Path.Combine(root, "source.metallib");
             File.WriteAllBytes(spirv, Frontend.CompileIntermediate(request, includeResolver));
-            List<string> translate = [spirv, "--msl", "--msl-version", "20300", "--msl-decoration-binding", "--entry", request.EntryPoint, "--stage", request.Stage == ShaderStage.Vertex ? "vert" : "frag", "--output", metal];
-            if (PlatformTarget == "ios") { translate.Add("--msl-ios"); }
-            Run(cross, translate, root);
+            if (request.Options.BindingPolicy.ConstantBufferShift != 0) { throw new NotSupportedException("The shared shaderc HLSL frontend currently requires zero constant-buffer shift for Metal."); }
+            Run(translator,[spirv,metal,request.Stage == ShaderStage.Vertex ? "vert" : "frag",request.EntryPoint,PlatformTarget,
+                request.Options.BindingPolicy.ConstantBufferShift.ToString(System.Globalization.CultureInfo.InvariantCulture),request.Options.BindingPolicy.TextureShift.ToString(System.Globalization.CultureInfo.InvariantCulture),request.Options.BindingPolicy.SamplerShift.ToString(System.Globalization.CultureInfo.InvariantCulture)],root);
             Run(cross, [spirv, "--reflect", "--output", reflection], root);
             using (JsonDocument reflected = JsonDocument.Parse(File.ReadAllText(reflection))) {
                 if (!reflected.RootElement.TryGetProperty("entryPoints", out JsonElement entryPoints) || entryPoints.GetArrayLength() == 0) { throw new InvalidOperationException("Metal intermediate reflection did not report a shader entry point."); }
