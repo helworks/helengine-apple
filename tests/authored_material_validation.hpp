@@ -5,6 +5,7 @@
 #include <fstream>
 #include <stdexcept>
 #include <string>
+#include <iostream>
 
 /// Validates a real authored HLSL material on the hardware GPU with explicit reflected constants and texture bindings.
 class AuthoredMaterialValidation final {
@@ -44,6 +45,7 @@ public:
         const std::size_t center = (32*64+32)*4;
         if (pixels[center] != 16 || pixels[center+1] != 128 || pixels[center+2] != 56 || pixels[center+3] != 255) throw std::runtime_error("Actual authored Metal material sampled/tinted pixels incorrectly");
         renderer.ReleaseMaterial(material);
+        std::cout << "Authored single-texture material pixels verified\n" << std::flush;
         const auto arrayFragment = Read(root+"/fragment-array.metallib");
         const auto arrayMaterial = renderer.UploadMaterial(vertex,"VSMain",arrayFragment,"PSMain");
         rejected = false;
@@ -54,6 +56,7 @@ public:
         const auto arrayPixels = renderer.RenderOffscreen(64,64);
         if (arrayPixels[center] != 16 || arrayPixels[center+1] != 128 || arrayPixels[center+2] != 56 || arrayPixels[center+3] != 255) throw std::runtime_error("Authored Metal texture/sampler array pixels were incorrect");
         renderer.ReleaseMaterial(arrayMaterial);
+        std::cout << "Authored texture/sampler array pixels verified\n" << std::flush;
         renderer.ReleaseMesh(mesh);
         renderer.ReleaseTexture(texture);
     }
