@@ -96,8 +96,8 @@ namespace helengine::apple {
         const std::array<float2,6> positions = {quad.TopLeft,quad.BottomLeft,quad.BottomRight,quad.TopLeft,quad.BottomRight,quad.TopRight};
         const float u = source.X.ToSingle();
         const float v = source.Y.ToSingle();
-        const float right = (source.X+source.Z).ToSingle();
-        const float bottom = (source.Y+source.W).ToSingle();
+        const float right = static_cast<float>(source.X+source.Z);
+        const float bottom = static_cast<float>(source.Y+source.W);
         const std::array<std::array<float,2>,6> uv = {{{u,v},{u,bottom},{right,bottom},{u,v},{right,bottom},{right,v}}};
         std::array<Vertex,6> vertices{};
         for (std::size_t index=0; index<vertices.size(); ++index) {
