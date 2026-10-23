@@ -15,6 +15,7 @@ public static class AppleBuildWorkspace {
         else if (progress == null) { throw new ArgumentNullException(nameof(progress)); }
         else if (diagnostics == null) { throw new ArgumentNullException(nameof(diagnostics)); }
         PlatformDefinition definition = ApplePlatformDefinitionFactory.Create(target);
+        string orientation = target == "ios" ? AppleScreenOrientation.Resolve(request.SelectedGraphicsOptionValues) : string.Empty;
         definition.CodegenProfiles.Single().NumericCapabilities.RequireSupported(request.NumericPolicy);
         if (request.Manifest.PlatformName != target) { throw new InvalidOperationException("Apple build manifest target differs from the selected builder."); }
         if (request.NumericPolicy.Identity != request.Manifest.NumericPolicy.Identity) { throw new InvalidOperationException("Apple request and content manifest have different numeric ABI policies."); }
@@ -73,7 +74,7 @@ public static class AppleBuildWorkspace {
             if (!request.SelectedGraphicsOptionValues.TryGetValue("default-" + dimension, out string value) || !int.TryParse(value, out int pixels) || pixels < 1 || pixels > 16384) { throw new InvalidOperationException("Apple selected graphics option default-" + dimension + " must contain a pixel count between 1 and 16384."); }
             configure.Add("-DHELENGINE_APPLE_DEFAULT_" + dimension.ToUpperInvariant() + "=" + pixels.ToString(System.Globalization.CultureInfo.InvariantCulture));
         }
-        if (target == "ios") { configure.AddRange(["-G", "Xcode", "-DCMAKE_SYSTEM_NAME=iOS", "-DCMAKE_OSX_DEPLOYMENT_TARGET=15.0", "-DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO"]); }
+        if (target == "ios") { configure.AddRange(["-G", "Xcode", "-DCMAKE_SYSTEM_NAME=iOS", "-DCMAKE_OSX_DEPLOYMENT_TARGET=15.0", "-DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO", "-DHELENGINE_IOS_SCREEN_ORIENTATION=" + orientation]); }
         await RunAsync(cmake, configure, native, "player-configure.log", cancellationToken);
         await RunAsync(cmake, ["--build", native, "--config", profile, "-j", "6"], native, "player-build.log", cancellationToken);
         string sourceBundle = Path.Combine(native, target == "ios" ? profile + "-" + sdk : "", "helengine_" + target + ".app");

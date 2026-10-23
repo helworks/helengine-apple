@@ -20,7 +20,8 @@ public static class ApplePlatformDefinitionFactory {
             ],
             [new("metal", "Metal", "Shared native Apple renderer", [
                 new("default-width","Default Window Width",PlatformSettingKind.Text,"1280",true,[]),
-                new("default-height","Default Window Height",PlatformSettingKind.Text,"720",true,[])
+                new("default-height","Default Window Height",PlatformSettingKind.Text,"720",true,[]),
+                .. (target == "ios" ? new PlatformSettingDefinition[] { new("screen-orientation", "Screen Orientation", PlatformSettingKind.Choice, "unspecified", true, ["unspecified", "portrait", "landscape"]) } : [])
             ])],
             [], [AppleMaterialSchema.Create()], [],
             [new("default", "Native C++20", "Little-endian ARM64 Clang with the engine row-vector convention", PlatformCodegenLanguage.Cpp, PlatformSerializationEndianness.LittleEndian,

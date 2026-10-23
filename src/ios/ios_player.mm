@@ -119,6 +119,8 @@ IosPlayer::~IosPlayer() { Shutdown(); }
 void IosPlayer::Initialize() {
     auto& s=*Resources;
     SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS,"0"); SDL_SetHint(SDL_HINT_MOUSE_TOUCH_EVENTS,"0");
+    // An explicit graphics-profile choice must constrain UIKit even though the SDL window remains resizable.
+    if(HELENGINE_IOS_SDL_ORIENTATIONS[0]!='\0') SDL_SetHint(SDL_HINT_ORIENTATIONS,HELENGINE_IOS_SDL_ORIENTATIONS);
     if(!SDL_Init(SDL_INIT_VIDEO|SDL_INIT_EVENTS|SDL_INIT_GAMEPAD)) throw std::runtime_error(std::string("iOS SDL_Init: ")+SDL_GetError());
     s.Window=SDL_CreateWindow("HelEngine",s.Width,s.Height,SDL_WINDOW_METAL|SDL_WINDOW_HIGH_PIXEL_DENSITY|SDL_WINDOW_RESIZABLE);
     if(!s.Window) throw std::runtime_error(std::string("iOS SDL_CreateWindow: ")+SDL_GetError());
