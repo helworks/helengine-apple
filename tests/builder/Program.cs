@@ -57,6 +57,7 @@ public static class Program {
         BuildWorkspaceTests.Run();
         AppleSdkSelectionTests.Run();
         AppleScreenOrientationTests.Run();
+        AppleNativeBuildArgumentsTests.Run();
         AppleCookContextTests.Run();
         AppleCookContextStagingTests.Run();
         Console.WriteLine("Apple builder metadata: 2 targets, 3 exact profiles, Metal, numeric policy and required inputs passed");

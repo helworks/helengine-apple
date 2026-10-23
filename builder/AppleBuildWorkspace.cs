@@ -76,7 +76,7 @@ public static class AppleBuildWorkspace {
         }
         if (target == "ios") { configure.AddRange(["-G", "Xcode", "-DCMAKE_SYSTEM_NAME=iOS", "-DCMAKE_OSX_DEPLOYMENT_TARGET=15.0", "-DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO", "-DHELENGINE_IOS_SCREEN_ORIENTATION=" + orientation]); }
         await RunAsync(cmake, configure, native, "player-configure.log", cancellationToken);
-        await RunAsync(cmake, ["--build", native, "--config", profile, "-j", "6"], native, "player-build.log", cancellationToken);
+        await RunAsync(cmake, CreateNativeBuildArguments(native, profile, Environment.GetEnvironmentVariable("CMAKE_BUILD_PARALLEL_LEVEL")), native, "player-build.log", cancellationToken);
         string sourceBundle = Path.Combine(native, target == "ios" ? profile + "-" + sdk : "", "helengine_" + target + ".app");
         if (!Directory.Exists(sourceBundle)) { throw new DirectoryNotFoundException("The native build did not produce its actual application bundle: " + sourceBundle); }
         string bundle = Path.GetFullPath(Path.Combine(output, "helengine_" + target + ".app"));
@@ -86,6 +86,13 @@ public static class AppleBuildWorkspace {
         string resources = target == "macos" ? Path.Combine(bundle, "Contents", "Resources") : bundle;
         CopyBundleTree(Path.Combine(output, "cooked"), Path.Combine(resources, "cooked"), cancellationToken);
         return new(true, [], [.. scenes], [.. assets]);
+    }
+
+    /// <summary>Preserves six native jobs when unset and delegates defined parallelism values, including empty values and validation, to CMake.</summary>
+    static IReadOnlyList<string> CreateNativeBuildArguments(string native, string profile, string configuredParallelLevel) {
+        List<string> arguments = ["--build", native, "--config", profile];
+        if (configuredParallelLevel == null) { arguments.AddRange(["-j", "6"]); }
+        return arguments;
     }
 
     /// <summary>Resolves a runtime-relative payload path and rejects absolute, drive, traversal and output-root escape forms.</summary>
